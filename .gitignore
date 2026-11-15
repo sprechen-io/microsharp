@@ -1,0 +1,12 @@
+bin/
+obj/
+artifacts/
+.playwright/
+.vs/
+*.user
+TestResults/
+node_modules/
+__pycache__/
+*.pyc
+*.py
+.pytest_cache/

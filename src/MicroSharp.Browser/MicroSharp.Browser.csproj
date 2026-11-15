@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+  <PropertyGroup>
+    <TargetFramework>net11.0</TargetFramework>
+    <RootNamespace>MicroSharp.Browser</RootNamespace>
+    <AssemblyName>MicroSharp.Browser</AssemblyName>
+    <AddRazorSupportForMvc>false</AddRazorSupportForMvc>
+    <Description>Browser microphone capture for MicroSharp through JavaScript interop. This package does not open an operating-system microphone and does not capture in a console process.</Description>
+    <PackageTags>microphone;audio;pcm;blazor;webassembly</PackageTags>
+    <IsPackable>true</IsPackable>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <SupportedPlatform Include="browser" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MicroSharp\MicroSharp.csproj" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="11.0.0" />
+  </ItemGroup>
+</Project>

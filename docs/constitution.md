@@ -1,0 +1,38 @@
+# MicroSharp Constitution
+
+## Core Principles
+
+### I. Bibliothek zuerst
+MicroSharp bleibt der Name der allgemeinen Mikrofonbibliothek. Der Vertrag, die Browser-Aufnahme und die Betriebssystem-Aufnahme bleiben getrennte, wiederverwendbare Bibliotheksgrenzen. Aufrufer duerfen die Typen direkt erzeugen. Abhaengigkeitsinjektion darf angeboten werden und darf nicht erzwungen werden. Sprachdienst-Zugangsdaten, Sprachdienst-Vertraege, Anwendungen und Studienartefakte duerfen nicht in diese Bibliothek uebernommen werden.
+
+### II. Ausschliesslich .NET 11
+Aktuelle Projekte, Beispiele, Tests, Pakete, Dokumentation und CI dieser Bibliothek MUESSEN ausschliesslich `net11.0` verwenden. `net10.0`-Ziele, Kompatibilitaetspfade und Matrixjobs sind unzulaessig. Ein reines Zielmoniker ist keine Nutzung einer Sprach- oder Laufzeitfaehigkeit. Historische Herkunft darf aeltere Ziele der Quellanwendung nennen und darf daraus keine aktuelle Unterstuetzung ableiten.
+
+### III. Getrennte echte Aufnahmewege
+Der portable Vertrag beschreibt Start, Stopp, Abbruch, Fehler, Berechtigung, Format und Freigabe. Die Quelle enthaelt nur die Browser-Aufnahme. Die Betriebssystem-Aufnahme ist neu und wird nicht als extrahierter Adapter beschrieben. Der Browser-Adapter darf Browser-Faehigkeiten nur auf einem Browser-Host beanspruchen. Der native Adapter MUSS ein echtes Betriebssystem-Aufnahmegeraet ueber eine gepflegte Aufnahmebibliothek oeffnen. Gemeinsame Audiostuecke werden kopiert, begrenzt und bei Verlust gezaehlt. Die technische Pufferform darf sich zwischen Browser und System unterscheiden. Ein virtueller PCM-Lieferant bleibt Testunterstuetzung und ersetzt diesen Adapter nicht.
+
+### IV. Nachweis statt Behauptung
+Lebenszyklus, verweigerte Berechtigung, Abbruch, Freigabe und tatsaechlicher Audiofluss MUESSEN geprueft werden. Die Browserpruefung nutzt einen lokalen Browser und ein simuliertes Mikrofon. Das Mikrofon des Hosts darf ohne ausdrueckliche Zustimmung nicht geoeffnet werden. Der Fehlerpfad eines nativen Geraets MUSS einen ausdruecklich ungueltigen Geraetenamen verwenden. Fehlende physische Hardware ist eine benannte Grenze. Windows- und macOS-Unterstuetzung darf ohne einen Lauf auf diesem System nicht zugesagt werden. SIMD, Threads und AOT duerfen nur versprochen oder konfiguriert werden, wenn eine konkrete Browser- oder SDK-Probe auf dem Host sie traegt.
+
+### V. Herkunft und schmale Aenderungen
+Uebernommene Aufnahmeideen behalten die MIT-Herkunft der Quelle mit Urheberhinweis und Quellcommit. Jeder oeffentliche C#-Typ liegt in einer eigenen Datei. Oeffentliche Dokumentation ist Deutsch mit ae/oe/ue. Ausnahmetexte sind Englisch. Projektdateien duerfen keinen Benutzer-Homepfad als Fallback oder Installationsvoraussetzung festschreiben. Persoenliche Betriebsbelege bleiben ausserhalb von Git.
+
+### VI. Qualifiziertes NuGet.org-Release und Umgebungsbeispiele
+Die qualifizierten Bibliothekspakete werden auf NuGet.org veroeffentlicht. Vor einem Push MUESSEN Paketkennungen, Version, Lizenz, Lieferumfang, native Abhaengigkeiten und die vorgesehenen Tests reviewbar belegt sein. Fremde Pakete duerfen nicht uebernommen oder ueberschrieben werden. Geheimnisse duerfen nicht in Quellen oder Logs stehen. Ein fehlender autorisierter Zugang macht den Release nicht fertig. Pack, lokaler Consumer-Nachweis und der Publishing-Workflow bleiben auch dann verpflichtend. Pro zugesagter Umgebung gibt es ein ausfuehrbares Beispiel, das die veroeffentlichten Paketkennungen und Versionen einbindet. Vor dem Push prueft ein isolierter Consumer genau die gepackten Dateien. Nach dem Push stellt ein sauberer Consumer dieselben Pakete von NuGet.org wieder her.
+
+### VII. Keine Python-Werkzeuge
+Das Projekt benoetigt und verwendet keine Python-Implementierungen, keine Python-Build- oder Testskripte und keine Python-Werkzeuge. Produktcode, Beispiele, Tests, Pakete, CI und lokale Pruefskripte bleiben in C# auf .NET 11 oder in Shell, die keine Python-Laufzeit aufruft.
+
+## Plattform- und Laufzeitgrenzen
+
+Aktuelle Produktartefakte duerfen nur Faehigkeiten nutzen, die eine offizielle .NET-11-, C#- oder Blazor-Quelle als verfuegbar ausweist und die ein Build, eine Veroeffentlichung oder eine Consumer-Pruefung beobachtet. Vorschau-Speichersicherheit bleibt aus. Die unterstuetzte PCM-Form ist vorzeichenbehaftetes 16-Bit-Little-Endian-Mono. Der native Linux-Bindungspfad ist der einzige, der ohne weiteren Lauf als geprueft gelten darf.
+
+## Qualitaets- und Nachweistore
+
+Rote Tests duerfen nicht durch Weglassen, gesenkte Schwellen oder falsche Erfolgsmeldungen geheilt werden. Schwere Builds und Tests laufen seriell und begrenzt.
+
+## Governance
+
+Diese Verfassung ersetzt fuer MicroSharp entgegenstehende aeltere Doppellauf- und Zielvorgaben. Sie gilt nicht fuer andere abgeschlossene Auftraege. Aenderungen werden in dieser Datei festgehalten, semantisch versioniert und mit dem Aenderungsdatum versehen. Eine inkompatible Streichung oder Umdeutung eines Grundsatzes hebt die Hauptversion. Ein neuer Grundsatz oder ein wesentlich erweiterter Abschnitt hebt die Nebenversion. Reine Klarstellungen heben die Patchversion. Reviews pruefen die Einhaltung: nur `net11.0`, ehrliche Plattformaussagen, getrennte echte Aufnahmewege, Herkunft, qualifiziertes NuGet.org-Release und keine Python-Werkzeuge.
+
+**Version**: 1.2.0 | **Ratified**: 2026-11-15 | **Last Amended**: 2026-11-15

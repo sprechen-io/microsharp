@@ -1,0 +1,24 @@
+MicroSharp
+Copyright (c) 2026 sprechen.io
+
+This project is licensed under the MIT License. See LICENSE.
+
+The PCM chunking and the browser capture flow are derived from the public
+repository sprechen-io/sprechen-io, commit
+1d603f3a75f408d1d11010cd49190e110979803b, which is also MIT,
+Copyright (c) 2026 sprechen.io. The derived parts are the signed 16-bit
+little-endian mono contract, the getUserMedia error classes, and the
+AudioWorklet resampling in
+src/MicroSharp.Browser/wwwroot/pcm-recorder-processor.js.
+Speech-service credentials, application policies, and study artifacts were
+not copied.
+
+OpenAL capture uses the NuGet package OpenTK.Audio.OpenAL 4.9.4, MIT,
+https://github.com/opentk/opentk. That package does not contain the native
+OpenAL library. On Linux the binding loads libopenal.so.1. The OpenAL Soft
+build installed by a distribution is LGPL-2+ and stays outside this package.
+This notice is not legal advice.
+
+The name MicroSharp is also used by the public repository
+AnmiTaliDev/microsharp, a C# microcontroller compiler. That project is a
+different work. No trademark clearance was performed.

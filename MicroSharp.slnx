@@ -1,0 +1,16 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/MicroSharp/MicroSharp.csproj" />
+    <Project Path="src/MicroSharp.Browser/MicroSharp.Browser.csproj" />
+    <Project Path="src/MicroSharp.Native/MicroSharp.Native.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/MicroSharp.ReleaseGate/MicroSharp.ReleaseGate.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/MicroSharp.Tests/MicroSharp.Tests.csproj" />
+    <Project Path="tests/MicroSharp.Browser.Tests/MicroSharp.Browser.Tests.csproj" />
+    <Project Path="tests/MicroSharp.Native.Tests/MicroSharp.Native.Tests.csproj" />
+    <Project Path="tests/MicroSharp.ReleaseGate.Tests/MicroSharp.ReleaseGate.Tests.csproj" />
+  </Folder>
+</Solution>

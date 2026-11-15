@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net11.0</TargetFramework>
+    <RootNamespace>MicroSharp.Native</RootNamespace>
+    <AssemblyName>MicroSharp.Native</AssemblyName>
+    <Description>Microphone capture for ordinary .NET. OpenAlMicrophoneCapture opens a named OpenAL 1.1 capture device through OpenTK.Audio.OpenAL. VirtualMicrophoneCapture supplies in-process PCM and does not open a device. Linux is the checked library binding. Windows is untested. macOS is not a supported claim.</Description>
+    <PackageTags>microphone;audio;pcm;openal</PackageTags>
+    <IsPackable>true</IsPackable>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MicroSharp\MicroSharp.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="OpenTK.Audio.OpenAL" Version="4.9.4" />
+  </ItemGroup>
+</Project>

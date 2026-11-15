@@ -1,0 +1,57 @@
+# MicroSharp
+
+MicroSharp is a C# microphone-capture library for browser and ordinary .NET projects. Micro names the microphone, and the package texts say so because the same short name is also used by an unrelated microcontroller compiler.
+
+The portable package does not open a device. `MicroSharp.Browser` captures in a browser document through JavaScript. `MicroSharp.Native` opens a named OpenAL capture device and, separately, can play PCM from an in-process source.
+
+## Packages
+
+| Package | Role |
+| --- | --- |
+| `MicroSharp` | PCM contract and session. No microphone and no browser API. |
+| `MicroSharp.Browser` | Blazor and WebAssembly capture through `IJSRuntime`. |
+| `MicroSharp.Native` | `OpenAlMicrophoneCapture` and `VirtualMicrophoneCapture`. |
+
+The only target is `net11.0`. The browser package references `Microsoft.AspNetCore.Components.Web` 11.0.0 and declares the `browser` platform. It does not reference the shared ASP.NET framework. Runtime Async stays off: on SDK 11.0.100 the WebAssembly interpreter rejected a runtime-async entry point and a runtime-async `WriteAsync`. The C# 15 collection-expression capacity argument is used for the bounded chunk queue.
+
+## Audio
+
+Delivered audio is signed 16-bit little-endian, one channel, at 8000, 16000, 24000, or 48000 Hz. The default is 16000 Hz and 20 ms, which is 640 bytes. `StopAsync` ends capture without an error and leaves queued chunks readable. `DisposeAsync` may be called more than once. Cancelling `StartAsync` releases a partial acquisition. Cancelling `ReadChunksAsync` stops only that reader.
+
+`DropOldest` is the live-capture backpressure mode. Browser and OpenAL reject `Wait` because their sources cannot pause. The virtual source accepts `Wait`.
+
+## OpenAL
+
+`OpenAlMicrophoneCapture` requires an explicit device name. An empty name is rejected so the OpenAL default device is never opened by accident. Pass a name from `ListCaptureDevices()`. `ALCaptureDevice.Null` and an unknown name become `DeviceNotFound`, and no session remains.
+
+The binding is `OpenTK.Audio.OpenAL` 4.9.4 (MIT). It calls `ALC.CaptureOpenDevice`, `CaptureStart`, `CaptureSamples`, `CaptureStop`, and `CaptureCloseDevice` with `ALFormat.Mono16`. The native library is not part of the NuGet package.
+
+| System | Library the binding looks for | This repository's claim |
+| --- | --- | --- |
+| Linux | `libopenal.so.1` | The binding matches OpenAL Soft. A host without a capture device proves the error path, not a successful physical recording. |
+| Windows | `openal32.dll` | Untested. |
+| macOS | Apple's OpenAL framework path by default | Not a supported claim. |
+
+Install OpenAL Soft on Linux before opening a device. A missing library is `Unavailable`, which is distinct from `DeviceNotFound`.
+
+`VirtualMicrophoneCapture` does not open an operating-system device. Use it for tests and for PCM that already exists in the process.
+
+## Browser
+
+The module is served from `_content/MicroSharp.Browser/microsharp-capture.js`. The worklet resamples to the requested rate and posts 16-bit chunks. Register `AddMicroSharpBrowser` only when `IJSRuntime` is already registered, or construct `BrowserMicrophoneCapture` directly. This adapter cannot capture in a console process.
+
+## Samples
+
+`samples/MicroSharp.Console` is an ordinary .NET consumer:
+
+```text
+dotnet run --project samples/MicroSharp.Console -- --device <openal-capture-name>
+```
+
+`--list` prints capture names and does not open a device. `--virtual` reads one in-process tone chunk. An unknown `--device` name exits with code 3 and does not fall back to the default device.
+
+`samples/MicroSharp.BlazorWasm` is the WebAssembly consumer. It starts capture only from the button.
+
+## License
+
+The C# code and the JavaScript port are MIT, Copyright (c) 2026 sprechen.io. See `NOTICE` for the microphone example they were derived from and for the OpenAL license boundary.

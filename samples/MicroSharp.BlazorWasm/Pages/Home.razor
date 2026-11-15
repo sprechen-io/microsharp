@@ -1,0 +1,113 @@
+@page "/"
+@inject IJSRuntime Js
+@using MicroSharp
+@using MicroSharp.Browser
+
+<PageTitle>MicroSharp</PageTitle>
+
+<h1>Mikrofon</h1>
+
+<p id="mic-flags">Browser-Host: @_requiresBrowser, Systemgeraet: @_capturesDevice</p>
+<p id="mic-status">@_status</p>
+<p>Bloecke: <span id="mic-chunks">@_chunks</span>, letzte Laenge: <span id="mic-bytes">@_lastBytes</span>, Spitze: <span id="mic-peak">@_peak</span></p>
+
+<button id="mic-start" @onclick="StartAsync">Start</button>
+<button id="mic-stop" @onclick="StopAsync">Stopp</button>
+<button id="mic-release" @onclick="ReleaseAsync">Freigabe</button>
+
+@code {
+    private BrowserMicrophoneCapture? _capture;
+    private IMicrophoneSession? _session;
+    private bool _requiresBrowser;
+    private bool _capturesDevice;
+    private int _chunks;
+    private int _lastBytes;
+    private int _peak;
+    private string _status = "idle";
+
+    private async Task StartAsync()
+    {
+        await ReleaseAsync();
+        _chunks = 0;
+        _lastBytes = 0;
+        _peak = 0;
+        _capture = new BrowserMicrophoneCapture(Js);
+        _requiresBrowser = _capture.RequiresBrowserHost;
+        _capturesDevice = _capture.CapturesOperatingSystemDevice;
+        try
+        {
+            _session = await _capture.StartAsync(new MicrophoneCaptureRequest());
+            _status = "running";
+            _ = ReadAsync(_session);
+        }
+        catch (Exception exception)
+        {
+            _status = exception.Message;
+        }
+    }
+
+    private async Task ReadAsync(IMicrophoneSession session)
+    {
+        try
+        {
+            await foreach (var chunk in session.ReadChunksAsync())
+            {
+                _chunks++;
+                _lastBytes = chunk.Payload.Length;
+                _peak = Math.Max(_peak, Peak(chunk.Payload));
+                await InvokeAsync(StateHasChanged);
+            }
+
+            if (_status == "running")
+            {
+                _status = "stopped";
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (Exception exception)
+        {
+            _status = exception.Message;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task StopAsync()
+    {
+        if (_session is not null)
+        {
+            await _session.StopAsync();
+            _status = "stopped";
+        }
+    }
+
+    private async Task ReleaseAsync()
+    {
+        if (_session is not null)
+        {
+            await _session.DisposeAsync();
+            _session = null;
+        }
+
+        if (_capture is not null)
+        {
+            _capture = null;
+            _status = "released";
+        }
+    }
+
+    private static int Peak(byte[] payload)
+    {
+        var peak = 0;
+        var samples = PcmEncoding.ToSamples(payload);
+        foreach (var sample in samples)
+        {
+            var magnitude = sample == short.MinValue ? 32768 : Math.Abs(sample);
+            if (magnitude > peak)
+            {
+                peak = magnitude;
+            }
+        }
+
+        return peak;
+    }
+}

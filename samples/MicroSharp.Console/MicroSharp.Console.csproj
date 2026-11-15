@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net11.0</TargetFramework>
+    <RootNamespace>MicroSharp.ConsoleSample</RootNamespace>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <Description>Console consumer for the OpenAL microphone adapter and the virtual PCM source.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="MicroSharp.Native" Version="0.1.0" />
+  </ItemGroup>
+</Project>

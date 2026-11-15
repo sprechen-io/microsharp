@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net11.0</TargetFramework>
+    <RootNamespace>MicroSharp</RootNamespace>
+    <AssemblyName>MicroSharp</AssemblyName>
+    <Description>Portable microphone-capture contracts and PCM session for .NET. This package does not open a microphone.</Description>
+    <PackageTags>microphone;audio;pcm</PackageTags>
+    <IsPackable>true</IsPackable>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+</Project>
