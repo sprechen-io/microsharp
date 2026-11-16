@@ -104,7 +104,7 @@ public sealed class BrowserMicrophoneHold : IAsyncDisposable
         }
 
         var running = _running;
-        if (running is { State: MicrophoneSessionState.Running })
+        if (running is { State: MicrophoneSessionState.Running or MicrophoneSessionState.Faulted })
         {
             await running.StopAsync(cancellationToken).ConfigureAwait(false);
             return;
