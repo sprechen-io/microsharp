@@ -3,13 +3,13 @@ using Microsoft.Extensions.DependencyInjection;
 namespace MicroSharp.Native;
 
 /// <summary>
-/// Optionale Registrierung. Aufrufer koennen <see cref="VirtualMicrophoneCapture"/> auch selbst erzeugen.
+/// Optional registration. Callers may also construct <see cref="VirtualMicrophoneCapture"/> themselves.
 /// </summary>
 public static class VirtualMicrophoneServiceCollectionExtensions
 {
     /// <summary>
-    /// Registriert eine einzelne virtuelle Aufnahme als Singleton.
-    /// Die PCM-Quelle wird von der Sitzung nicht freigegeben.
+    /// Registers one virtual capture as a singleton.
+    /// The session does not release the PCM source.
     /// </summary>
     public static IServiceCollection AddMicroSharpVirtualMicrophone(
         this IServiceCollection services,

@@ -1,17 +1,17 @@
 namespace MicroSharp;
 
 /// <summary>
-/// Legt fest, was geschieht, wenn der Aufnehmer schneller liefert, als der Aufrufer liest.
+/// Sets what happens when the capturer delivers faster than the caller reads.
 /// </summary>
 public enum CaptureBackpressure
 {
     /// <summary>
-    /// Der Aufnehmer wartet, bis im Puffer Platz ist. Das kann eine live laufende Quelle nicht anhalten.
+    /// The capturer waits until the buffer has room. A live source cannot be paused for that wait.
     /// </summary>
     Wait = 0,
 
     /// <summary>
-    /// Der aelteste noch nicht gelesene Block wird verworfen.
+    /// The oldest unread chunk is discarded.
     /// </summary>
     DropOldest = 1,
 }

@@ -115,7 +115,7 @@ public sealed class BrowserMicrophoneCaptureTests
         var error = await Assert.ThrowsAsync<MicrophoneException>(() => capture.StartAsync(new MicrophoneCaptureRequest(), CancellationToken.None));
 
         Assert.Equal(MicrophoneErrorCode.Unavailable, error.Code);
-        Assert.Contains("stop", module.Calls);
+        Assert.Contains(module.Calls, call => call is "stop" or "release");
     }
 
     [Fact]

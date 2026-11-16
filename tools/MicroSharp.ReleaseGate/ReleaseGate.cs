@@ -7,7 +7,7 @@ using System.Text.RegularExpressions;
 namespace MicroSharp.ReleaseGate;
 
 /// <summary>
-/// Prueft Tag, CI-Lauf und Pakethashes, bevor ein Publishing-Token angefordert wird.
+/// Checks the tag, the CI run and package hashes before a publishing token is requested.
 /// </summary>
 public static class ReleaseGate
 {

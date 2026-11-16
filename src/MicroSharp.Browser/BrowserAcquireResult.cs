@@ -3,15 +3,15 @@ using System.Text.Json.Serialization;
 namespace MicroSharp.Browser;
 
 /// <summary>
-/// Ergebnis von <c>getUserMedia</c> und dem Anlegen der Browsersitzung.
+/// Result of <c>getUserMedia</c> and of creating the browser session.
 /// </summary>
 public sealed class BrowserAcquireResult
 {
-    /// <summary>Kennung der Sitzung oder leer, wenn der Browser ablehnt.</summary>
+    /// <summary>Session id, or empty when the browser refuses.</summary>
     [JsonPropertyName("sessionId")]
     public string? SessionId { get; set; }
 
-    /// <summary>Name der Browser-Ausnahme, sofern der Zugriff scheitert.</summary>
+    /// <summary>Name of the browser exception when access fails.</summary>
     [JsonPropertyName("errorName")]
     public string? ErrorName { get; set; }
 }

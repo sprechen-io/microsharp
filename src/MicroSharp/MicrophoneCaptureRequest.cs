@@ -1,16 +1,16 @@
 namespace MicroSharp;
 
 /// <summary>
-/// Gewuenschtes Format und Verhalten des Puffers fuer eine Aufnahme.
+/// Requested format and buffer behavior for a capture.
 /// </summary>
 public sealed class MicrophoneCaptureRequest
 {
-    /// <summary>Zu lieferndes Format. Der Vorgabewert ist <see cref="PcmFormat.Default"/>.</summary>
+    /// <summary>Format to deliver. The default is <see cref="PcmFormat.Default"/>.</summary>
     public PcmFormat Format { get; init; } = PcmFormat.Default;
 
-    /// <summary>Verhalten bei vollem Puffer. Der Vorgabewert verwirft den aeltesten Block.</summary>
+    /// <summary>Behavior when the buffer is full. The default discards the oldest chunk.</summary>
     public CaptureBackpressure Backpressure { get; init; } = CaptureBackpressure.DropOldest;
 
-    /// <summary>Anzahl der Bloecke, die auf einen Leser warten duerfen.</summary>
+    /// <summary>Number of chunks that may wait for a reader.</summary>
     public int QueueCapacityChunks { get; init; } = 50;
 }

@@ -3,14 +3,14 @@ using System.Buffers.Binary;
 namespace MicroSharp.Native;
 
 /// <summary>
-/// Liest rohe little-endian-PCM-Bytes ohne WAV-Kopf.
-/// Die aufrufende Seite besitzt den Stream und gibt ihn frei.
+/// Reads raw little-endian PCM bytes without a WAV header.
+/// The caller owns the stream and releases it.
 /// </summary>
 public sealed class StreamPcmSource : IPcmSource
 {
     private readonly Stream _stream;
 
-    /// <summary>Erstellt die Quelle fuer einen lesbaren Stream.</summary>
+    /// <summary>Creates the source for a readable stream.</summary>
     public StreamPcmSource(Stream stream, PcmFormat format)
     {
         if (stream is null)

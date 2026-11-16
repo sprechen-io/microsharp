@@ -1,7 +1,7 @@
 namespace MicroSharp.ReleaseGate;
 
 /// <summary>
-/// Der Commit darf keinen Publishing-Token anfordern.
+/// The commit must not request a publishing token.
 /// </summary>
 public sealed class ReleaseGateException : Exception
 {

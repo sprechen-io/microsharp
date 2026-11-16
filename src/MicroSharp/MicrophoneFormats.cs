@@ -1,16 +1,16 @@
 namespace MicroSharp;
 
 /// <summary>
-/// Prueft Formate, die alle MicroSharp-Adapter liefern.
+/// Checks formats that every MicroSharp adapter delivers.
 /// </summary>
 public static class MicrophoneFormats
 {
     private static readonly List<int> SupportedRates = [with(capacity: 4), 8_000, 16_000, 24_000, 48_000];
 
-    /// <summary>Unterstuetzte Abtastraten in Hertz.</summary>
+    /// <summary>Supported sample rates in hertz.</summary>
     public static IReadOnlyList<int> SupportedSampleRatesHz => SupportedRates;
 
-    /// <summary>Lehnt Formate ab, die kein Adapter liefert.</summary>
+    /// <summary>Rejects formats that no adapter delivers.</summary>
     public static void EnsureSupported(PcmFormat format)
     {
         ArgumentNullException.ThrowIfNull(format);
@@ -22,7 +22,7 @@ public static class MicrophoneFormats
         }
     }
 
-    /// <summary>Prueft Format und Puffergroesse einer Aufnahmeanforderung.</summary>
+    /// <summary>Checks the format and buffer size of a capture request.</summary>
     public static void EnsureSupported(MicrophoneCaptureRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
