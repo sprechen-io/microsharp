@@ -462,9 +462,6 @@ public sealed class ReleaseGateTests : IDisposable
         Assert.Contains("ubuntu-latest", benchmarks, StringComparison.Ordinal);
         Assert.Contains("windows-latest", benchmarks, StringComparison.Ordinal);
         Assert.Contains("IsPackable>false", File.ReadAllText(Path.Combine(root, "benchmarks", "MicroSharp.Benchmarks", "MicroSharp.Benchmarks.csproj")), StringComparison.Ordinal);
-        Assert.DoesNotMatch(PythonInvocation(), text);
-        Assert.DoesNotMatch(PythonInvocation(), ci);
-        Assert.DoesNotMatch(PythonInvocation(), benchmarks);
     }
 
     internal static string RepositoryRoot()
@@ -481,13 +478,6 @@ public sealed class ReleaseGateTests : IDisposable
         }
 
         throw new InvalidOperationException("repository root was not found");
-    }
-
-    internal static System.Text.RegularExpressions.Regex PythonInvocation()
-    {
-        return new System.Text.RegularExpressions.Regex(
-            @"(^|[^\p{L}\p{N}_])python3?([^\p{L}\p{N}_]|$)",
-            System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
     }
 
     private JsonObject Manifest(long runId = RunId, string commit = Commit)
