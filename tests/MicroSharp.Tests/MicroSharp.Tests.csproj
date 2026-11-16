@@ -17,5 +17,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\MicroSharp\MicroSharp.csproj" />
+    <ProjectReference Include="..\..\benchmarks\MicroSharp.Benchmarks\MicroSharp.Benchmarks.csproj" />
   </ItemGroup>
 </Project>

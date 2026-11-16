@@ -4,6 +4,9 @@
     <Project Path="src/MicroSharp.Browser/MicroSharp.Browser.csproj" />
     <Project Path="src/MicroSharp.Native/MicroSharp.Native.csproj" />
   </Folder>
+  <Folder Name="/benchmarks/">
+    <Project Path="benchmarks/MicroSharp.Benchmarks/MicroSharp.Benchmarks.csproj" />
+  </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/MicroSharp.ReleaseGate/MicroSharp.ReleaseGate.csproj" />
   </Folder>

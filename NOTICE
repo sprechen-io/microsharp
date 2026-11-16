@@ -17,7 +17,14 @@ OpenAL capture uses the NuGet package OpenTK.Audio.OpenAL 4.9.4, MIT,
 https://github.com/opentk/opentk. That package does not contain the native
 OpenAL library. On Linux the binding loads libopenal.so.1. The OpenAL Soft
 build installed by a distribution is LGPL-2+ and stays outside this package.
-This notice is not legal advice.
+Windows CI downloads OpenAL Soft 1.25.2 Win64 from the upstream release
+archive and loads it as openal32.dll for the test host only. The archive
+COPYING file is the GNU Library General Public License, Version 2. That
+binary is not part of this package. This notice is not legal advice.
+
+Queue measurements in benchmarks/MicroSharp.Benchmarks time this library's
+bounded PCM queue. They do not copy the source application's lookback ring
+or its speech segmentation.
 
 The name MicroSharp is also used by the public repository
 AnmiTaliDev/microsharp, a C# microcontroller compiler. That project is a

@@ -15,9 +15,20 @@ public sealed class OpenAlMicrophoneCaptureTests
     }
 
     [Fact]
-    public async Task AnExplicitAbsentDeviceNameFailsWithoutLeavingASession()
+    public async Task AnExplicitAbsentDeviceNameIsDeviceNotFoundWhenTheLibraryLoads()
     {
         var capture = new OpenAlMicrophoneCapture(new OpenAlMicrophoneOptions(AbsentDeviceName));
+        try
+        {
+            _ = capture.ListCaptureDevices();
+        }
+        catch (MicrophoneException exception) when (exception.Code == MicrophoneErrorCode.Unavailable)
+        {
+            throw new InvalidOperationException(
+                "OpenAL did not load. Unavailable is not a passing result for this test.",
+                exception);
+        }
+
         var permission = await capture.GetPermissionAsync();
         Assert.NotEqual(MicrophonePermissionState.Granted, permission.State);
 

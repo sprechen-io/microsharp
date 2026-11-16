@@ -1,6 +1,7 @@
 bin/
 obj/
 artifacts/
+.bdn/
 .playwright/
 .vs/
 *.user

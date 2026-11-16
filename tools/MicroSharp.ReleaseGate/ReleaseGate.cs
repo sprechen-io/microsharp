@@ -13,6 +13,7 @@ public static class ReleaseGate
 {
     public const string CiWorkflow = ".github/workflows/ci.yml";
     public const string CiJob = "net11";
+    public static readonly string[] RequiredJobs = ["native-linux", "native-windows", "net11"];
     public const string NugetOrg = "https://api.nuget.org/v3/index.json";
 
     private static readonly string[] PackageIds = ["MicroSharp", "MicroSharp.Browser", "MicroSharp.Native"];
@@ -73,7 +74,7 @@ public static class ReleaseGate
         var version = ReadVersion(propsPath);
         RequireTag(tag, version);
         var run = SelectRunRecord(runsDocument, commit);
-        RequireNet11(jobsDocument, run.Id);
+        RequireQualificationJobs(jobsDocument, run.Id);
         if (!TryLong(manifest["schema"], out var schema) || schema != 1)
         {
             throw new ReleaseGateException("release manifest schema is not 1");
@@ -443,7 +444,7 @@ public static class ReleaseGate
         return matches.OrderByDescending(match => match.CreatedAt, StringComparer.Ordinal).First();
     }
 
-    private static void RequireNet11(JsonObject jobsDocument, long runId)
+    private static void RequireQualificationJobs(JsonObject jobsDocument, long runId)
     {
         if (jobsDocument["jobs"] is not JsonArray jobs || jobs.Count == 0)
         {
@@ -455,7 +456,7 @@ public static class ReleaseGate
             throw new ReleaseGateException("CI job list is incomplete");
         }
 
-        var found = false;
+        var seen = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var node in jobs)
         {
             if (node is not JsonObject job)
@@ -468,21 +469,29 @@ public static class ReleaseGate
                 throw new ReleaseGateException("CI job list belongs to a different run");
             }
 
-            if (GetString(job, "name") != CiJob)
+            var name = GetString(job, "name");
+            if (string.IsNullOrEmpty(name))
             {
-                continue;
+                throw new ReleaseGateException("CI job has no name");
             }
 
-            found = true;
+            if (!seen.TryAdd(name, GetString(job, "conclusion") ?? string.Empty))
+            {
+                throw new ReleaseGateException($"CI job {name} is duplicated");
+            }
+
             if (GetString(job, "status") != "completed" || GetString(job, "conclusion") != "success")
             {
-                throw new ReleaseGateException("net11 did not succeed");
+                throw new ReleaseGateException($"CI job {name} did not succeed");
             }
         }
 
-        if (!found)
+        foreach (var required in RequiredJobs)
         {
-            throw new ReleaseGateException("net11 is missing");
+            if (!seen.ContainsKey(required))
+            {
+                throw new ReleaseGateException($"CI job {required} is missing");
+            }
         }
     }
 
@@ -536,11 +545,32 @@ public static class ReleaseGate
         using var archive = ZipFile.OpenRead(path);
         foreach (var entry in archive.Entries)
         {
-            if (entry.FullName.Contains("libopenal", StringComparison.OrdinalIgnoreCase))
+            if (BundlesOpenAl(entry.FullName))
             {
-                throw new ReleaseGateException($"{Path.GetFileName(path)} bundles libopenal");
+                throw new ReleaseGateException($"{Path.GetFileName(path)} bundles an OpenAL native library");
             }
         }
+    }
+
+    private static bool BundlesOpenAl(string fullName)
+    {
+        var name = fullName.Replace('\\', '/');
+        if (name.Contains("libopenal", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (name.Contains("soft_oal", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (name.EndsWith("openal32.dll", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return name.Contains("OpenAL.framework", StringComparison.OrdinalIgnoreCase);
     }
 
     private static void RequireTag(string tag, string version)

@@ -165,6 +165,7 @@ internal sealed class MicrophoneSession : IMicrophoneSession
         {
             while (true)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 TaskCompletionSource<bool>? wait = null;
                 PcmChunk? chunk = null;
                 Exception? error = null;

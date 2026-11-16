@@ -123,8 +123,8 @@ public sealed class ReleaseGateTests : IDisposable
     [Fact]
     public void RefusesAFailedNet11Job()
     {
-        var error = Assert.Throws<ReleaseGateException>(() => CheckCase(Runs(Run(RunId)), Jobs(conclusion: "failure"), Manifest()));
-        Assert.Contains("net11", error.Message, StringComparison.Ordinal);
+        var error = Assert.Throws<ReleaseGateException>(() => CheckCase(Runs(Run(RunId)), Jobs(net11: "failure"), Manifest()));
+        Assert.Contains("net11 did not succeed", error.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -209,7 +209,53 @@ public sealed class ReleaseGateTests : IDisposable
         }
 
         var error = Assert.Throws<ReleaseGateException>(() => Manifest());
-        Assert.Contains("libopenal", error.Message, StringComparison.Ordinal);
+        Assert.Contains("OpenAL native library", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RefusesABundledWindowsOpenAlDll()
+    {
+        var path = Path.Combine(_packages, "MicroSharp.Native.0.1.0.nupkg");
+        using (var archive = ZipFile.Open(path, ZipArchiveMode.Update))
+        {
+            using var stream = archive.CreateEntry("runtimes/win-x64/native/openal32.dll").Open();
+            stream.Write("native"u8);
+        }
+
+        var error = Assert.Throws<ReleaseGateException>(() => Manifest());
+        Assert.Contains("OpenAL native library", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RefusesAMissingWindowsJob()
+    {
+        var error = Assert.Throws<ReleaseGateException>(() =>
+            CheckCase(Runs(Run(RunId)), Jobs(nativeWindows: null), Manifest()));
+        Assert.Contains("native-windows is missing", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RefusesAFailedLinuxJobBesideSuccessfulJobs()
+    {
+        var error = Assert.Throws<ReleaseGateException>(() =>
+            CheckCase(Runs(Run(RunId)), Jobs(nativeLinux: "failure"), Manifest()));
+        Assert.Contains("native-linux did not succeed", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RefusesOneSuccessfulLegWhenAnotherRequiredJobIsMissing()
+    {
+        var error = Assert.Throws<ReleaseGateException>(() =>
+            CheckCase(Runs(Run(RunId)), Jobs(nativeWindows: null, net11: null), Manifest()));
+        Assert.Contains("is missing", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RefusesADuplicatedQualificationJob()
+    {
+        var error = Assert.Throws<ReleaseGateException>(() =>
+            CheckCase(Runs(Run(RunId)), Jobs(duplicateNet11: true), Manifest()));
+        Assert.Contains("net11 is duplicated", error.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -396,8 +442,29 @@ public sealed class ReleaseGateTests : IDisposable
             StringComparison.Ordinal);
         Assert.Contains("microsharp-qualified-packages", ci, StringComparison.Ordinal);
         Assert.Contains("refs/heads/main", ci, StringComparison.Ordinal);
+        Assert.Contains("native-linux", ci, StringComparison.Ordinal);
+        Assert.Contains("native-windows", ci, StringComparison.Ordinal);
+        Assert.Contains("needs: [native-linux, native-windows]", ci, StringComparison.Ordinal);
+        Assert.Contains("Category!=VirtualDevice", ci, StringComparison.Ordinal);
+        Assert.Contains("MICROSHARP_REQUIRE_VIRTUAL_CAPTURE", ci, StringComparison.Ordinal);
+        Assert.Contains("install-openal-soft-windows.ps1", ci, StringComparison.Ordinal);
+        Assert.Contains("--job Dry", ci, StringComparison.Ordinal);
+        Assert.Contains("NoSuchMeasurement", ci, StringComparison.Ordinal);
+        Assert.Contains("microsharp_virtual_capture_stop", ci, StringComparison.Ordinal);
+        Assert.Contains(
+            "HasCriticalValidationErrors",
+            File.ReadAllText(Path.Combine(root, "benchmarks", "MicroSharp.Benchmarks", "BenchmarkRunGate.cs")),
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("openal32.dll", File.ReadAllText(Path.Combine(root, "src", "MicroSharp.Native", "MicroSharp.Native.csproj")), StringComparison.Ordinal);
+        var benchmarks = File.ReadAllText(Path.Combine(root, ".github", "workflows", "benchmarks.yml"));
+        Assert.Contains("workflow_dispatch", benchmarks, StringComparison.Ordinal);
+        Assert.DoesNotContain("push:", benchmarks, StringComparison.Ordinal);
+        Assert.Contains("ubuntu-latest", benchmarks, StringComparison.Ordinal);
+        Assert.Contains("windows-latest", benchmarks, StringComparison.Ordinal);
+        Assert.Contains("IsPackable>false", File.ReadAllText(Path.Combine(root, "benchmarks", "MicroSharp.Benchmarks", "MicroSharp.Benchmarks.csproj")), StringComparison.Ordinal);
         Assert.DoesNotMatch(PythonInvocation(), text);
         Assert.DoesNotMatch(PythonInvocation(), ci);
+        Assert.DoesNotMatch(PythonInvocation(), benchmarks);
     }
 
     internal static string RepositoryRoot()
@@ -481,23 +548,43 @@ public sealed class ReleaseGateTests : IDisposable
         };
     }
 
-    private static JsonObject Jobs(long runId = RunId, string conclusion = "success")
+    private static JsonObject Jobs(
+        long runId = RunId,
+        string? net11 = "success",
+        string? nativeLinux = "success",
+        string? nativeWindows = "success",
+        bool duplicateNet11 = false)
     {
-        var rows = new JsonArray
+        var rows = new JsonArray();
+        Add(rows, "native-linux", nativeLinux, runId);
+        Add(rows, "native-windows", nativeWindows, runId);
+        Add(rows, "net11", net11, runId);
+        if (duplicateNet11)
         {
-            new JsonObject
-            {
-                ["name"] = "net11",
-                ["run_id"] = runId,
-                ["status"] = "completed",
-                ["conclusion"] = conclusion,
-            },
-        };
+            Add(rows, "net11", "success", runId);
+        }
+
         return new JsonObject
         {
             ["jobs"] = rows,
             ["total_count"] = rows.Count,
         };
+
+        static void Add(JsonArray rows, string name, string? conclusion, long runId)
+        {
+            if (conclusion is null)
+            {
+                return;
+            }
+
+            rows.Add(new JsonObject
+            {
+                ["name"] = name,
+                ["run_id"] = runId,
+                ["status"] = "completed",
+                ["conclusion"] = conclusion,
+            });
+        }
     }
 
     private void WritePackage(string packageId, byte[] dll, byte[] symbols, bool browserAssets)

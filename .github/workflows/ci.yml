@@ -22,8 +22,115 @@ env:
   PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.playwright
 
 jobs:
+  native-linux:
+    name: native-linux
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Use the runner temp directory
+        run: |
+          echo "TMPDIR=${RUNNER_TEMP}" >> "$GITHUB_ENV"
+          echo "TMP=${RUNNER_TEMP}" >> "$GITHUB_ENV"
+          echo "TEMP=${RUNNER_TEMP}" >> "$GITHUB_ENV"
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 11.0.x
+
+      - name: Install OpenAL
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y libopenal1 pulseaudio
+          dpkg-query -W -f 'libopenal1 ${Version}\n' libopenal1
+
+      - name: Test adapter lifecycle and the OpenAL load path
+        run: dotnet test tests/MicroSharp.Native.Tests/MicroSharp.Native.Tests.csproj --configuration Release --filter "Category!=VirtualDevice"
+
+      - name: Test a named virtual capture source
+        run: |
+          set -euo pipefail
+          # shellcheck disable=SC1091
+          source scripts/prepare-linux-virtual-capture.sh
+          export MICROSHARP_REQUIRE_VIRTUAL_CAPTURE=1
+          export MICROSHARP_OPENAL_VIRTUAL_DEVICE=microsharp_null
+          status=0
+          dotnet test tests/MicroSharp.Native.Tests/MicroSharp.Native.Tests.csproj --configuration Release --no-build --filter "Category=VirtualDevice" || status=$?
+          pid="${MICROSHARP_PULSE_PID:-}"
+          microsharp_virtual_capture_stop
+          if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
+            echo "private PulseAudio daemon is still running" >&2
+            exit 1
+          fi
+          exit "$status"
+
+      - name: Dry-run the queue benchmark harness
+        run: dotnet run --project benchmarks/MicroSharp.Benchmarks/MicroSharp.Benchmarks.csproj --configuration Release -- --job Dry --filter '*CopyEnqueueAndRead*'
+
+      - name: Reject a benchmark selection that measures nothing
+        shell: bash
+        run: |
+          set +e
+          dotnet run --project benchmarks/MicroSharp.Benchmarks/MicroSharp.Benchmarks.csproj --configuration Release --no-build -- --job Dry --filter '*NoSuchMeasurement*'
+          status=$?
+          set -e
+          if [[ "$status" -eq 0 ]]; then
+            echo "an empty benchmark selection exited 0" >&2
+            exit 1
+          fi
+
+  native-windows:
+    name: native-windows
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Use the runner temp directory
+        shell: pwsh
+        run: |
+          Add-Content -Path $env:GITHUB_ENV -Value "TMPDIR=$env:RUNNER_TEMP"
+          Add-Content -Path $env:GITHUB_ENV -Value "TMP=$env:RUNNER_TEMP"
+          Add-Content -Path $env:GITHUB_ENV -Value "TEMP=$env:RUNNER_TEMP"
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 11.0.x
+
+      - name: Build the native tests
+        run: dotnet build tests/MicroSharp.Native.Tests/MicroSharp.Native.Tests.csproj --configuration Release
+
+      - name: Install OpenAL Soft beside the test host
+        shell: pwsh
+        run: ./scripts/install-openal-soft-windows.ps1 -Destination tests/MicroSharp.Native.Tests/bin/Release/net11.0
+
+      - name: Test adapter lifecycle and the OpenAL load path
+        run: dotnet test tests/MicroSharp.Native.Tests/MicroSharp.Native.Tests.csproj --configuration Release --no-build --filter "Category!=VirtualDevice"
+
+      - name: Dry-run the queue benchmark harness
+        run: dotnet run --project benchmarks/MicroSharp.Benchmarks/MicroSharp.Benchmarks.csproj --configuration Release -- --job Dry --filter '*CopyEnqueueAndRead*'
+
+      - name: Reject a benchmark selection that measures nothing
+        shell: bash
+        run: |
+          set +e
+          dotnet run --project benchmarks/MicroSharp.Benchmarks/MicroSharp.Benchmarks.csproj --configuration Release --no-build -- --job Dry --filter '*NoSuchMeasurement*'
+          status=$?
+          set -e
+          if [[ "$status" -eq 0 ]]; then
+            echo "an empty benchmark selection exited 0" >&2
+            exit 1
+          fi
+
   library:
     name: net11
+    needs: [native-linux, native-windows]
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -51,7 +158,7 @@ jobs:
         run: bash scripts/install-playwright-chromium.sh
 
       - name: Test
-        run: dotnet test MicroSharp.slnx --configuration Release
+        run: dotnet test MicroSharp.slnx --configuration Release --filter "Category!=VirtualDevice"
 
       - name: Browser capture
         run: dotnet test tests/MicroSharp.Browser.Tests/MicroSharp.Browser.Tests.csproj --configuration Release --filter SimulatedMicrophoneProducesPcmThroughTheBrowserModule

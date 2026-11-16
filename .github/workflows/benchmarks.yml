@@ -1,0 +1,88 @@
+name: Benchmarks
+
+on:
+  workflow_dispatch:
+    inputs:
+      job:
+        description: BenchmarkDotNet job
+        required: true
+        default: Short
+        type: choice
+        options:
+          - Short
+          - Medium
+          - Default
+      filter:
+        description: Benchmark filter
+        required: true
+        default: "*"
+        type: string
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: benchmarks-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+
+jobs:
+  measure:
+    name: measure
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Use the runner temp directory
+        shell: bash
+        run: |
+          echo "TMPDIR=${RUNNER_TEMP}" >> "$GITHUB_ENV"
+          echo "TMP=${RUNNER_TEMP}" >> "$GITHUB_ENV"
+          echo "TEMP=${RUNNER_TEMP}" >> "$GITHUB_ENV"
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 11.0.x
+
+      - name: Measure the shared PCM queue
+        shell: bash
+        env:
+          BENCH_JOB: ${{ inputs.job }}
+          BENCH_FILTER: ${{ inputs.filter }}
+          MICROSHARP_BENCHMARK_ARTIFACTS: ${{ runner.temp }}/microsharp-benchmarks
+        run: |
+          set -euo pipefail
+          case "${BENCH_JOB}" in
+            Short|Medium|Default) ;;
+            *)
+              echo "refusing benchmark job ${BENCH_JOB}" >&2
+              exit 1
+              ;;
+          esac
+          if [[ -z "${BENCH_FILTER}" ]]; then
+            echo "refusing an empty benchmark filter" >&2
+            exit 1
+          fi
+          dotnet run --project benchmarks/MicroSharp.Benchmarks/MicroSharp.Benchmarks.csproj --configuration Release -- \
+            --job "${BENCH_JOB}" \
+            --filter "${BENCH_FILTER}"
+
+      - name: Upload benchmark artifacts
+        uses: actions/upload-artifact@v6
+        with:
+          name: pcm-queue-benchmarks-${{ matrix.os }}
+          path: ${{ runner.temp }}/microsharp-benchmarks
+          if-no-files-found: error
+          retention-days: 30

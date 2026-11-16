@@ -16,6 +16,8 @@ public interface IMicrophoneSession : IAsyncDisposable
 
     /// <summary>
     /// Liest Bloecke in Einreihenfolge. Der Abbruch beendet nur das Lesen und haelt die Aufnahme nicht an.
+    /// Ein abgebrochener Token nimmt den naechsten Block nicht aus der Warteschlange.
+    /// Noch nicht ausgegebene Bloecke bleiben in der Sitzung.
     /// Nach einem fehlerfreien Stopp endet die Folge. Nach einem Fehler wird die gespeicherte Ausnahme geworfen,
     /// sobald bereits eingereihte Bloecke gelesen wurden.
     /// </summary>

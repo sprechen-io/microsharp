@@ -24,8 +24,12 @@ Der Gerätename ist Pflicht und darf nicht leer sein. `null` würde in OpenAL da
 
 Der OpenAL-Adapter lehnt `CaptureBackpressure.Wait` ab. Der Aufnahmering läuft weiter, während der Leser wartet. Lebende Aufnahme nutzt `DropOldest`. Der virtuelle Adapter behält `Wait` für Tests ohne Gerät.
 
+Die gemeinsame Warteschlange liegt in `MicroSharp` und bleibt dort. Sie kopiert jeden Block, hält höchstens die gesetzte Kapazität und zählt `DropOldest`. Ein Lookback-Ring mit Lesecursor wäre ein anderes Bauteil. Er ist in diesem Stand kein viertes Paket und übernimmt keine Sprachsegmentierung. Messungen dieser Warteschlange liegen in `benchmarks/MicroSharp.Benchmarks`. Das Projekt ist nicht paketierbar und gehört nicht zum Release.
+
 ## Plattformen
 
-Linux ist die Plattform, deren Bibliotheksname zur Bindung passt. Ob ein Host ein Aufnahmegerät hat, ist eine Laufzeitgrenze: ohne Gerät ist der Beleg der Fehlerpfad mit einem ausdrücklich ungültigen Namen, nicht eine erfolgreiche physische Aufnahme. Windows ist ungetestet, weil `openal32.dll` hier nicht ausgeführt wurde. macOS bleibt aus der Unterstützungsaussage heraus, weil der Standardpfad der Bindung nicht OpenAL Soft ist und kein Lauf vorliegt. iOS, Android und der Browser gehören nicht zum nativen Paket.
+Linux und Windows prüfen den Ladeweg. Ob ein Host ein Aufnahmegerät hat, ist eine Laufzeitgrenze: ohne Gerät ist der Beleg der Fehlerpfad mit einem ausdrücklich ungültigen Namen, nicht eine erfolgreiche physische Aufnahme. `native-linux` installiert `libopenal1` und kann zusätzlich einen privaten PulseAudio-Eingang `microsharp_null` öffnen. Danach beendet dieser Lauf nur den Daemon, den er selbst gestartet hat. `native-windows` lädt OpenAL Soft 1.25.2, Win64, `soft_oal.dll` umbenannt nach `openal32.dll`, nur für den Testhost. Quelle, Version, Archivhash, DLL-Hash und Lizenz stehen in `native/openal-soft-windows.json`. Die Lizenzdatei im Archiv ist die GNU Library General Public License, Version 2. Diese DLL wird nicht ins Paket gelegt. Der Windows-Job hat keinen deterministischen virtuellen Eingang und behauptet keine physische Aufnahme. macOS bleibt aus der Unterstützungsaussage heraus, weil der Standardpfad der Bindung nicht OpenAL Soft ist und kein Lauf vorliegt. iOS, Android und der Browser gehören nicht zum nativen Paket.
+
+`net11` packt und lädt die qualifizierten Pakete erst hoch, wenn `native-linux` und `native-windows` erfolgreich waren. Der Release prüft alle drei Jobnamen. Ein einzelner erfolgreicher Job genügt nicht.
 
 Das einzige Ziel ist `net11.0`. Das OpenTK-Asset ist `lib/netcoreapp3.1` und wird von diesem Ziel wiederhergestellt. Ein aelteres Ziel wird nicht angeboten.
