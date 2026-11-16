@@ -51,6 +51,9 @@ jobs:
       - name: Test adapter lifecycle and the OpenAL load path
         run: dotnet test tests/MicroSharp.Native.Tests/MicroSharp.Native.Tests.csproj --configuration Release --filter "Category!=VirtualDevice"
 
+      - name: Check private capture teardown
+        run: bash scripts/prepare-linux-virtual-capture.sh --self-check
+
       - name: Test a named virtual capture source
         run: |
           set -euo pipefail
@@ -61,9 +64,12 @@ jobs:
           status=0
           dotnet test tests/MicroSharp.Native.Tests/MicroSharp.Native.Tests.csproj --configuration Release --no-build --filter "Category=VirtualDevice" || status=$?
           pid="${MICROSHARP_PULSE_PID:-}"
-          microsharp_virtual_capture_stop
-          if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
-            echo "private PulseAudio daemon is still running" >&2
+          start="${MICROSHARP_PULSE_START:-}"
+          if ! microsharp_virtual_capture_stop; then
+            echo "private capture teardown failed" >&2
+            exit 1
+          fi
+          if ! microsharp_virtual_capture_assert_gone "$pid" "$start"; then
             exit 1
           fi
           exit "$status"
