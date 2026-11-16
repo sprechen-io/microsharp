@@ -11,9 +11,11 @@ public sealed class BrowserMicrophoneHold : IAsyncDisposable
     private readonly IJSObjectReference _module;
     private readonly BrowserMicrophoneCapture _capture;
     private readonly SemaphoreSlim _ownership = new(1, 1);
+    private readonly SemaphoreSlim _releaseGate = new(1, 1);
     private BrowserMicrophoneSession? _running;
     private int _released;
     private int _disposeRequested;
+    private int _startInFlight;
 
     internal BrowserMicrophoneHold(IJSObjectReference module, BrowserMicrophoneCapture capture, string sessionId)
     {
@@ -25,10 +27,18 @@ public sealed class BrowserMicrophoneHold : IAsyncDisposable
     /// <summary>Kennung der Browserquelle.</summary>
     public string SessionId { get; }
 
-    /// <summary>Schaltet die Quellspur ein oder aus. Der Wert gilt vor dem Verbinden und waehrend der Aufnahme.</summary>
+    /// <summary>
+    /// Schaltet die Quellspur ein oder aus. Der Wert gilt vor dem Verbinden, waehrend der Aufnahme
+    /// und waehrend einer noch nicht erfolgreichen Freigabe.
+    /// </summary>
     public async ValueTask SetSourceEnabledAsync(bool enabled, CancellationToken cancellationToken = default)
     {
-        ThrowIfUnavailable();
+        if (Volatile.Read(ref _released) != 0)
+        {
+            throw new MicrophoneException(MicrophoneErrorCode.Unavailable, "The browser source has been released.");
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
         try
         {
             await _module.InvokeVoidAsync("setSourceEnabled", cancellationToken, SessionId, enabled).ConfigureAwait(false);
@@ -134,56 +144,100 @@ public sealed class BrowserMicrophoneHold : IAsyncDisposable
         }
 
         cancellationToken.ThrowIfCancellationRequested();
-        await _ownership.WaitAsync(cancellationToken).ConfigureAwait(false);
+        // Der Browseraufruf bleibt ausserhalb der Besitzsperre, damit Freigabe und Quellenschalter
+        // ihn nicht abwarten. Nur die erfolgreiche Freigabe verhindert danach die Veroeffentlichung.
+        BrowserMicrophoneSession? session = null;
+        DotNetObjectReference<BrowserMicrophoneSession>? reference = null;
         try
         {
-            ThrowIfUnavailable();
-            if (_running is { State: MicrophoneSessionState.Running })
-            {
-                throw new MicrophoneException(MicrophoneErrorCode.Unavailable, "A capture session is already running.");
-            }
-
-            BrowserMicrophoneSession? session = null;
-            session = new BrowserMicrophoneSession(
-                request.Format,
-                request.QueueCapacityChunks,
-                token => StopGraphAsync(releaseDeviceOnStop, token),
-                () => _capture.ClearActive(session));
-            var reference = DotNetObjectReference.Create(session);
-            session.AttachReference(reference);
+            await _ownership.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
-                if (!_capture.TryReserve(session))
+                ThrowIfUnavailable();
+                if (_startInFlight != 0 || _running is { State: MicrophoneSessionState.Running })
                 {
                     throw new MicrophoneException(MicrophoneErrorCode.Unavailable, "A capture session is already running.");
                 }
 
-                var started = await _module.InvokeAsync<BrowserStartResult>(
-                    "start",
-                    cancellationToken,
-                    SessionId,
-                    reference,
-                    BrowserMicrophoneCapture.FormatPayload(request.Format)).ConfigureAwait(false);
-                BrowserMicrophoneCapture.EnsureStartedFormat(request.Format, started);
-                ThrowIfUnavailable();
+                _startInFlight = 1;
+                session = new BrowserMicrophoneSession(
+                    request.Format,
+                    request.QueueCapacityChunks,
+                    token => StopGraphAsync(releaseDeviceOnStop, token),
+                    () => _capture.ClearActive(session));
+                reference = DotNetObjectReference.Create(session);
+                session.AttachReference(reference);
+                if (!_capture.TryReserve(session))
+                {
+                    _startInFlight = 0;
+                    throw new MicrophoneException(MicrophoneErrorCode.Unavailable, "A capture session is already running.");
+                }
+            }
+            finally
+            {
+                _ownership.Release();
+            }
+
+            var started = await _module.InvokeAsync<BrowserStartResult>(
+                "start",
+                cancellationToken,
+                SessionId,
+                reference,
+                BrowserMicrophoneCapture.FormatPayload(request.Format)).ConfigureAwait(false);
+            BrowserMicrophoneCapture.EnsureStartedFormat(request.Format, started);
+            await _ownership.WaitAsync(CancellationToken.None).ConfigureAwait(false);
+            try
+            {
+                if (Volatile.Read(ref _released) != 0)
+                {
+                    throw new MicrophoneException(MicrophoneErrorCode.Unavailable, "The browser source has been released.");
+                }
+
                 _running = session;
+                _startInFlight = 0;
                 return session;
             }
-            catch
+            finally
             {
-                await session.AbandonWithoutBrowserCallAsync().ConfigureAwait(false);
-                throw;
+                _ownership.Release();
             }
         }
-        finally
+        catch
         {
-            _ownership.Release();
+            if (session is not null)
+            {
+                await _ownership.WaitAsync(CancellationToken.None).ConfigureAwait(false);
+                try
+                {
+                    if (ReferenceEquals(_running, session))
+                    {
+                        _running = null;
+                    }
+
+                    _startInFlight = 0;
+                }
+                finally
+                {
+                    _ownership.Release();
+                }
+
+                try
+                {
+                    await session.AbandonWithoutBrowserCallAsync().ConfigureAwait(false);
+                }
+                catch (Exception exception) when (exception is not OperationCanceledException)
+                {
+                }
+            }
+
+            throw;
         }
     }
 
     /// <summary>
     /// Gibt die Browserquelle frei. Ein erfolgreicher oder bereits getrennter Aufruf ist abgeschlossen.
     /// Schlaegt die Freigabe im noch verbundenen Browser fehl, bleibt ein erneuter Aufruf wirksam.
+    /// Der Browser wird auch dann gerufen, wenn ein Start derselben Quelle noch nicht zurueck ist.
     /// </summary>
     public async ValueTask DisposeAsync()
     {
@@ -192,8 +246,7 @@ public sealed class BrowserMicrophoneHold : IAsyncDisposable
             return;
         }
 
-        Interlocked.Exchange(ref _disposeRequested, 1);
-        await _ownership.WaitAsync(CancellationToken.None).ConfigureAwait(false);
+        await _releaseGate.WaitAsync(CancellationToken.None).ConfigureAwait(false);
         try
         {
             if (Volatile.Read(ref _released) != 0)
@@ -201,19 +254,8 @@ public sealed class BrowserMicrophoneHold : IAsyncDisposable
                 return;
             }
 
-            var running = _running;
-            _running = null;
-            if (running is not null)
-            {
-                try
-                {
-                    await running.AbandonWithoutBrowserCallAsync().ConfigureAwait(false);
-                }
-                catch (Exception exception) when (exception is not OperationCanceledException)
-                {
-                }
-            }
-
+            Interlocked.Exchange(ref _disposeRequested, 1);
+            Exception? releaseError = null;
             try
             {
                 await _module.InvokeVoidAsync("release", CancellationToken.None, SessionId).ConfigureAwait(false);
@@ -226,6 +268,42 @@ public sealed class BrowserMicrophoneHold : IAsyncDisposable
             catch (ObjectDisposedException)
             {
                 Interlocked.Exchange(ref _released, 1);
+            }
+            catch (JSException exception)
+            {
+                releaseError = exception;
+            }
+
+            await AbandonPublishedAsync().ConfigureAwait(false);
+            if (releaseError is not null)
+            {
+                throw releaseError;
+            }
+        }
+        finally
+        {
+            _releaseGate.Release();
+        }
+    }
+
+    private async Task AbandonPublishedAsync()
+    {
+        await _ownership.WaitAsync(CancellationToken.None).ConfigureAwait(false);
+        try
+        {
+            var running = _running;
+            _running = null;
+            if (running is null)
+            {
+                return;
+            }
+
+            try
+            {
+                await running.AbandonWithoutBrowserCallAsync().ConfigureAwait(false);
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
             }
         }
         finally

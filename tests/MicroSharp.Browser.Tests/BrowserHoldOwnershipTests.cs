@@ -65,19 +65,67 @@ public sealed class BrowserHoldOwnershipTests
         var hold = await HoldAsync(module);
         var starting = hold.StartAsync(new MicrophoneCaptureRequest(), CancellationToken.None);
         await module.StartEntered.Task;
-        var disposing = hold.DisposeAsync();
+        await hold.DisposeAsync();
 
-        Assert.DoesNotContain("release", module.Calls);
+        Assert.Contains("release", module.Calls);
+        Assert.DoesNotContain("disconnect", module.Calls);
         module.StartGate.TrySetResult(true);
 
         var error = await Assert.ThrowsAsync<MicrophoneException>(async () => await starting);
-        await disposing;
 
         Assert.Equal(MicrophoneErrorCode.Unavailable, error.Code);
         Assert.Equal(1, module.Calls.Count(call => call == "start"));
         Assert.Equal(1, module.Calls.Count(call => call == "release"));
         Assert.DoesNotContain("disconnect", module.Calls);
         Assert.False(await hold.IsLiveAsync());
+    }
+
+    [Fact]
+    public async Task ReleaseFailureDuringPendingStartSurfacesAndStillPublishesThatStart()
+    {
+        var module = new ScriptedJsModule { PauseStart = true, ReleaseFailuresRemaining = 1 };
+        var hold = await HoldAsync(module);
+        var starting = hold.StartAsync(new MicrophoneCaptureRequest(), CancellationToken.None);
+        await module.StartEntered.Task;
+
+        var rejected = await Assert.ThrowsAsync<JSException>(async () => await hold.DisposeAsync());
+
+        Assert.Equal("The browser rejected release.", rejected.Message);
+        Assert.Equal(1, module.Calls.Count(call => call == "release"));
+        Assert.DoesNotContain("disconnect", module.Calls);
+        module.StartGate.TrySetResult(true);
+
+        var session = await starting;
+        Assert.Equal(MicrophoneSessionState.Running, session.State);
+        Assert.True(await hold.IsLiveAsync());
+        await Assert.ThrowsAsync<MicrophoneException>(() => hold.StartAsync(new MicrophoneCaptureRequest(), CancellationToken.None));
+        Assert.Equal(1, module.Calls.Count(call => call == "start"));
+
+        await hold.DisposeAsync();
+
+        Assert.Equal(2, module.Calls.Count(call => call == "release"));
+        Assert.Equal(MicrophoneSessionState.Disposed, session.State);
+        Assert.False(await hold.IsLiveAsync());
+    }
+
+    [Fact]
+    public async Task SetSourceEnabledReachesTheBrowserWhileReleaseIsPending()
+    {
+        var module = new ScriptedJsModule { PauseRelease = true };
+        var hold = await HoldAsync(module);
+        var releasing = hold.DisposeAsync();
+        await module.ReleaseEntered.Task;
+
+        await hold.SetSourceEnabledAsync(false);
+
+        Assert.Equal([false], module.SourceEnabled);
+        module.ReleaseGate.TrySetResult(true);
+        await releasing;
+        var unavailable = await Assert.ThrowsAsync<MicrophoneException>(
+            () => hold.SetSourceEnabledAsync(true).AsTask());
+
+        Assert.Equal(MicrophoneErrorCode.Unavailable, unavailable.Code);
+        Assert.Equal(1, module.Calls.Count(call => call == "release"));
     }
 
     [Fact]

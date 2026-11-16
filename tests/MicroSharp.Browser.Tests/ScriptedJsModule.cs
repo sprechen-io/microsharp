@@ -40,6 +40,12 @@ internal sealed class ScriptedJsModule : IJSRuntime, IJSObjectReference
 
     public bool ReleaseDisconnects { get; set; }
 
+    public bool PauseRelease { get; set; }
+
+    public TaskCompletionSource<bool> ReleaseGate { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    public TaskCompletionSource ReleaseEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
     public int? StartSampleRateHz { get; set; }
 
     public TaskCompletionSource StartEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -80,7 +86,8 @@ internal sealed class ScriptedJsModule : IJSRuntime, IJSObjectReference
             "isLive" => Live,
             "trackProcessing" => Track,
             "start" => await StartAsync(args, cancellationToken).ConfigureAwait(false),
-            "disconnect" or "stop" or "release" => null,
+            "disconnect" or "stop" => null,
+            "release" => await CompleteReleaseAsync().ConfigureAwait(false),
             _ => throw new InvalidOperationException($"Unexpected JavaScript call {identifier}."),
         };
 
@@ -88,6 +95,18 @@ internal sealed class ScriptedJsModule : IJSRuntime, IJSObjectReference
     }
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
+    private async Task<object?> CompleteReleaseAsync()
+    {
+        if (!PauseRelease)
+        {
+            return null;
+        }
+
+        ReleaseEntered.TrySetResult();
+        await ReleaseGate.Task.ConfigureAwait(false);
+        return null;
+    }
 
     private async Task<BrowserAcquireResult> AcquireAsync(object?[]? args)
     {
