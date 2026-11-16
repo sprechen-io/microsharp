@@ -154,6 +154,66 @@ public sealed class BrowserHoldOwnershipTests
     }
 
     [Fact]
+    public async Task DisposingASupersededSessionDoesNotDisconnectTheReplacement()
+    {
+        var module = new ScriptedJsModule();
+        var hold = await HoldAsync(module);
+        var request = new MicrophoneCaptureRequest();
+        var first = await hold.StartAsync(request, CancellationToken.None);
+        await first.StopAsync();
+
+        Assert.Equal(1, module.Calls.Count(call => call == "disconnect"));
+        Assert.Equal(MicrophoneSessionState.Stopped, first.State);
+        Assert.DoesNotContain("release", module.Calls);
+
+        var second = await hold.StartAsync(request, CancellationToken.None);
+        Assert.Equal(MicrophoneSessionState.Running, second.State);
+        await first.DisposeAsync();
+
+        Assert.Equal(1, module.Calls.Count(call => call == "disconnect"));
+        Assert.Equal(2, module.Calls.Count(call => call == "start"));
+        Assert.Equal(MicrophoneSessionState.Running, second.State);
+        Assert.DoesNotContain("release", module.Calls);
+
+        var payload = new byte[second.Format.BytesPerChunk];
+        payload[0] = 0xA0;
+        payload[1] = 0x0F;
+        ((BrowserMicrophoneSession)second).OnPcmChunk(payload);
+        await using var reader = second.ReadChunksAsync().GetAsyncEnumerator();
+        Assert.True(await reader.MoveNextAsync());
+        Assert.Equal(payload, reader.Current.Payload);
+
+        await second.StopAsync();
+        Assert.Equal(2, module.Calls.Count(call => call == "disconnect"));
+        Assert.Equal(MicrophoneSessionState.Stopped, second.State);
+        await hold.DisposeAsync();
+        Assert.Equal(1, module.Calls.Count(call => call == "release"));
+        Assert.False(await hold.IsLiveAsync());
+    }
+
+    [Fact]
+    public async Task DisposingAFaultedSessionAfterReuseDoesNotDisconnectTheReplacement()
+    {
+        var module = new ScriptedJsModule();
+        var hold = await HoldAsync(module);
+        var request = new MicrophoneCaptureRequest();
+        var first = await hold.StartAsync(request, CancellationToken.None);
+        ((BrowserMicrophoneSession)first).OnCaptureFault("The capture graph failed.");
+        Assert.Equal(MicrophoneSessionState.Faulted, first.State);
+        Assert.DoesNotContain("disconnect", module.Calls);
+
+        var second = await hold.StartAsync(request, CancellationToken.None);
+        await first.DisposeAsync();
+
+        Assert.DoesNotContain("disconnect", module.Calls);
+        Assert.Equal(MicrophoneSessionState.Disposed, first.State);
+        Assert.Equal(MicrophoneSessionState.Running, second.State);
+        await second.DisposeAsync();
+        Assert.Equal(1, module.Calls.Count(call => call == "disconnect"));
+        await hold.DisposeAsync();
+    }
+
+    [Fact]
     public async Task OverlappingDirectStartsKeepOneSessionAndReleaseTheOtherSource()
     {
         var module = new ScriptedJsModule { PauseAcquire = true };

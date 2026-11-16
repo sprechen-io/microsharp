@@ -13,6 +13,9 @@ public sealed class BrowserMicrophoneHold : IAsyncDisposable
     private readonly SemaphoreSlim _ownership = new(1, 1);
     private readonly SemaphoreSlim _releaseGate = new(1, 1);
     private BrowserMicrophoneSession? _running;
+    private Task _graphStop = Task.CompletedTask;
+    private int _graphGeneration;
+    private int _graphStopIssuedFor;
     private int _released;
     private int _disposeRequested;
     private int _startInFlight;
@@ -148,6 +151,8 @@ public sealed class BrowserMicrophoneHold : IAsyncDisposable
         // ihn nicht abwarten. Nur die erfolgreiche Freigabe verhindert danach die Veroeffentlichung.
         BrowserMicrophoneSession? session = null;
         DotNetObjectReference<BrowserMicrophoneSession>? reference = null;
+        var generation = 0;
+        var previousGraphStop = Task.CompletedTask;
         try
         {
             await _ownership.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -159,11 +164,13 @@ public sealed class BrowserMicrophoneHold : IAsyncDisposable
                     throw new MicrophoneException(MicrophoneErrorCode.Unavailable, "A capture session is already running.");
                 }
 
+                previousGraphStop = _graphStop;
+                generation = ++_graphGeneration;
                 _startInFlight = 1;
                 session = new BrowserMicrophoneSession(
                     request.Format,
                     request.QueueCapacityChunks,
-                    token => StopGraphAsync(releaseDeviceOnStop, token),
+                    token => StopGraphAsync(generation, releaseDeviceOnStop, token),
                     () => _capture.ClearActive(session));
                 reference = DotNetObjectReference.Create(session);
                 session.AttachReference(reference);
@@ -178,6 +185,8 @@ public sealed class BrowserMicrophoneHold : IAsyncDisposable
                 _ownership.Release();
             }
 
+            // Ein noch laufendes Trennen der vorigen Aufnahme muss enden, bevor der neue Graph entsteht.
+            await previousGraphStop.WaitAsync(cancellationToken).ConfigureAwait(false);
             var started = await _module.InvokeAsync<BrowserStartResult>(
                 "start",
                 cancellationToken,
@@ -312,23 +321,85 @@ public sealed class BrowserMicrophoneHold : IAsyncDisposable
         }
     }
 
-    private async Task StopGraphAsync(bool releaseDeviceOnStop, CancellationToken cancellationToken)
+    private async Task StopGraphAsync(int generation, bool releaseDeviceOnStop, CancellationToken cancellationToken)
     {
-        var method = releaseDeviceOnStop ? "stop" : "disconnect";
+        Task? alreadyIssued = null;
+        TaskCompletionSource? completed = null;
+        await _ownership.WaitAsync(CancellationToken.None).ConfigureAwait(false);
         try
         {
-            await _module.InvokeVoidAsync(method, cancellationToken, SessionId).ConfigureAwait(false);
+            // Nur die zuletzt veroeffentlichte Aufnahme trennt den gemeinsamen Browsergraphen.
+            if (generation != _graphGeneration)
+            {
+                return;
+            }
+
+            if (_graphStopIssuedFor == generation)
+            {
+                alreadyIssued = _graphStop;
+            }
+            else
+            {
+                completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                _graphStop = completed.Task;
+                _graphStopIssuedFor = generation;
+            }
         }
-        catch (JSDisconnectedException)
+        finally
         {
-        }
-        catch (ObjectDisposedException)
-        {
+            _ownership.Release();
         }
 
-        if (releaseDeviceOnStop)
+        if (completed is null)
         {
-            Interlocked.Exchange(ref _released, 1);
+            await alreadyIssued!.ConfigureAwait(false);
+            return;
+        }
+
+        var failed = false;
+        try
+        {
+            var method = releaseDeviceOnStop ? "stop" : "disconnect";
+            try
+            {
+                await _module.InvokeVoidAsync(method, cancellationToken, SessionId).ConfigureAwait(false);
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+            catch (ObjectDisposedException)
+            {
+            }
+
+            if (releaseDeviceOnStop)
+            {
+                Interlocked.Exchange(ref _released, 1);
+            }
+        }
+        catch
+        {
+            failed = true;
+            throw;
+        }
+        finally
+        {
+            if (failed)
+            {
+                await _ownership.WaitAsync(CancellationToken.None).ConfigureAwait(false);
+                try
+                {
+                    if (_graphGeneration == generation && _graphStopIssuedFor == generation)
+                    {
+                        _graphStopIssuedFor = 0;
+                    }
+                }
+                finally
+                {
+                    _ownership.Release();
+                }
+            }
+
+            completed.TrySetResult();
         }
     }
 
