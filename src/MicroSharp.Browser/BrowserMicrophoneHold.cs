@@ -79,6 +79,40 @@ public sealed class BrowserMicrophoneHold : IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// Loest den Aufnahmegraphen, ohne die Quelle freizugeben.
+    /// Ohne laufende Aufnahme bleibt der Aufruf eine Trennung der Browserquelle.
+    /// </summary>
+    public async ValueTask DisconnectAsync(CancellationToken cancellationToken = default)
+    {
+        if (Volatile.Read(ref _released) != 0 || Volatile.Read(ref _disposeRequested) != 0)
+        {
+            return;
+        }
+
+        var running = _running;
+        if (running is { State: MicrophoneSessionState.Running })
+        {
+            await running.StopAsync(cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        try
+        {
+            await _module.InvokeVoidAsync("disconnect", cancellationToken, SessionId).ConfigureAwait(false);
+        }
+        catch (JSException)
+        {
+            throw;
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+        catch (ObjectDisposedException)
+        {
+        }
+    }
+
     /// <summary>Verbindet die Aufnahme. Die Quelle bleibt nach <see cref="IMicrophoneSession.StopAsync"/> erhalten.</summary>
     public Task<IMicrophoneSession> StartAsync(
         MicrophoneCaptureRequest request,

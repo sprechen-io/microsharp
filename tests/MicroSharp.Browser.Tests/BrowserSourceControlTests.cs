@@ -60,6 +60,24 @@ public sealed class BrowserSourceControlTests
     }
 
     [Fact]
+    public async Task DisconnectBeforeStartDoesNotReleaseTheSource()
+    {
+        var module = new ScriptedJsModule();
+        var capture = new BrowserMicrophoneCapture(module);
+        var hold = (await capture.PrepareAsync(false, CancellationToken.None)).Hold
+            ?? throw new InvalidOperationException("Expected a held source.");
+
+        await hold.DisconnectAsync();
+        await hold.StartAsync(new MicrophoneCaptureRequest(), CancellationToken.None);
+
+        Assert.Contains("disconnect", module.Calls);
+        Assert.DoesNotContain("release", module.Calls);
+        Assert.Equal(1, module.Calls.Count(call => call == "start"));
+        await hold.DisposeAsync();
+        Assert.Contains("release", module.Calls);
+    }
+
+    [Fact]
     public async Task LivenessAndTrackProcessingComeFromTheHeldSource()
     {
         var module = new ScriptedJsModule();

@@ -106,6 +106,30 @@ public sealed class BrowserMicrophoneCapture : IMicrophoneCapture
             new BrowserMicrophoneHold(module, this, acquired.SessionId));
     }
 
+    /// <summary>
+    /// Gibt eine Browserkennung frei, auch wenn daraus keine gehaltene Quelle wurde.
+    /// Ein Fehler im noch verbundenen Browser bleibt sichtbar.
+    /// </summary>
+    public async ValueTask ReleaseBrowserSessionAsync(string sessionId, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(sessionId);
+        var module = await ModuleAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await module.InvokeVoidAsync("release", cancellationToken, sessionId).ConfigureAwait(false);
+        }
+        catch (JSException)
+        {
+            throw;
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+        catch (ObjectDisposedException)
+        {
+        }
+    }
+
     /// <inheritdoc />
     public async Task<IMicrophoneSession> StartAsync(
         MicrophoneCaptureRequest request,
