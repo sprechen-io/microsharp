@@ -20,10 +20,7 @@ Uebernommene Aufnahmeideen behalten die MIT-Herkunft der Quelle mit Urheberhinwe
 ### VI. Qualifiziertes NuGet.org-Release und Umgebungsbeispiele
 Die qualifizierten Bibliothekspakete werden auf NuGet.org veroeffentlicht. Vor einem Push MUESSEN Paketkennungen, Version, Lizenz, Lieferumfang, native Abhaengigkeiten und die vorgesehenen Tests reviewbar belegt sein. Fremde Pakete duerfen nicht uebernommen oder ueberschrieben werden. Geheimnisse duerfen nicht in Quellen oder Logs stehen. Ein fehlender autorisierter Zugang macht den Release nicht fertig. Pack, lokaler Consumer-Nachweis und der Publishing-Workflow bleiben auch dann verpflichtend. Pro zugesagter Umgebung gibt es ein ausfuehrbares Beispiel, das die veroeffentlichten Paketkennungen und Versionen einbindet. Vor dem Push prueft ein isolierter Consumer genau die gepackten Dateien. Nach dem Push stellt ein sauberer Consumer dieselben Pakete von NuGet.org wieder her.
 
-### VII. Keine Python-Werkzeuge
-Das Projekt benoetigt und verwendet keine Python-Implementierungen, keine Python-Build- oder Testskripte und keine Python-Werkzeuge. Produktcode, Beispiele, Tests, Pakete, CI und lokale Pruefskripte bleiben in C# auf .NET 11 oder in Shell, die keine Python-Laufzeit aufruft.
-
-### VIII. Kommentare ausschliesslich Englisch
+### VII. Kommentare ausschliesslich Englisch
 Alle Kommentare in Quelle, Tests, Beispielen, Skripten und Konfiguration MUESSEN ausschliesslich Englisch sein. Das umfasst Inline-Kommentare, Blockkommentare und XML-Dokumentationskommentare. XML-Dokumentationskommentare sind ausdruecklich Englisch. Oeffentliche Markdown-Prosa bleibt Deutsch mit ae/oe/ue. Ausnahmetexte bleiben Englisch. Rechtliche Herkunfts- und Urhebervermerke bleiben erhalten.
 
 ## Plattform- und Laufzeitgrenzen
@@ -36,6 +33,6 @@ Rote Tests duerfen nicht durch Weglassen, gesenkte Schwellen oder falsche Erfolg
 
 ## Governance
 
-Diese Verfassung ersetzt fuer MicroSharp entgegenstehende aeltere Doppellauf- und Zielvorgaben. Sie gilt nicht fuer andere abgeschlossene Auftraege. Aenderungen werden in dieser Datei festgehalten, semantisch versioniert und mit dem Aenderungsdatum versehen. Eine inkompatible Streichung oder Umdeutung eines Grundsatzes hebt die Hauptversion. Ein neuer Grundsatz oder ein wesentlich erweiterter Abschnitt hebt die Nebenversion. Reine Klarstellungen heben die Patchversion. Reviews pruefen die Einhaltung: nur `net11.0`, ehrliche Plattformaussagen, getrennte echte Aufnahmewege, Herkunft, qualifiziertes NuGet.org-Release, keine Python-Werkzeuge und englische Kommentare einschliesslich XML-Dokumentation.
+Diese Verfassung ersetzt fuer MicroSharp entgegenstehende aeltere Doppellauf- und Zielvorgaben. Sie gilt nicht fuer andere abgeschlossene Auftraege. Aenderungen werden in dieser Datei festgehalten, semantisch versioniert und mit dem Aenderungsdatum versehen. Eine inkompatible Streichung oder Umdeutung eines Grundsatzes hebt die Hauptversion. Ein neuer Grundsatz oder ein wesentlich erweiterter Abschnitt hebt die Nebenversion. Reine Klarstellungen heben die Patchversion. Reviews pruefen die Einhaltung: nur `net11.0`, ehrliche Plattformaussagen, getrennte echte Aufnahmewege, Herkunft, qualifiziertes NuGet.org-Release und englische Kommentare einschliesslich XML-Dokumentation.
 
-**Version**: 1.4.0 | **Ratified**: 2026-11-15 | **Last Amended**: 2026-11-16T12:14:14Z
+**Version**: 2.0.0 | **Ratified**: 2026-11-15 | **Last Amended**: 2026-11-16T14:20:12Z
