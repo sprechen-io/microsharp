@@ -177,7 +177,8 @@ export MICROSHARP_PULSE_PIDFILE="$pidfile"
 export MICROSHARP_PULSE_MARKER="file:${runtime}/state/pulse.log"
 trap 'code=$?; microsharp_virtual_capture_stop || code=1; exit "$code"' EXIT
 
-pulseaudio \
+# -n skips default.pa. That script loads hardware modules and aborts when the runner has none.
+if ! pulseaudio \
   --daemonize=yes \
   --exit-idle-time=-1 \
   --disallow-exit \
@@ -185,7 +186,16 @@ pulseaudio \
   --high-priority=no \
   --use-pid-file=yes \
   --log-target="file:${runtime}/state/pulse.log" \
-  --log-level=info
+  --log-level=info \
+  -n \
+  --load="module-native-protocol-unix auth-anonymous=1" \
+  --load="module-null-source source_name=microsharp_null source_properties=device.description=microsharp_null"; then
+  echo "PulseAudio did not start." >&2
+  if [[ -f "$runtime/state/pulse.log" ]]; then
+    cat "$runtime/state/pulse.log" >&2 || true
+  fi
+  return 1
+fi
 
 ready=0
 for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
@@ -214,7 +224,9 @@ if [[ -z "$MICROSHARP_PULSE_PID" ]]; then
   return 1
 fi
 
-pactl load-module module-null-source \
-  source_name=microsharp_null \
-  source_properties=device.description=microsharp_null
-pactl list short sources
+sources="$(pactl list short sources)"
+printf '%s\n' "$sources"
+if [[ "$sources" != *microsharp_null* ]]; then
+  echo "The prepared null source is not listed." >&2
+  return 1
+fi
