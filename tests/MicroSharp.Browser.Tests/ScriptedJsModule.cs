@@ -48,6 +48,18 @@ internal sealed class ScriptedJsModule : IJSRuntime, IJSObjectReference
 
     public int? StartSampleRateHz { get; set; }
 
+    public int? RequestedSampleRateHz { get; private set; }
+
+    public bool MalformedAcquire { get; set; }
+
+    public bool PauseSetSource { get; set; }
+
+    public bool FailNextSetSource { get; set; }
+
+    public TaskCompletionSource<bool> SetSourceGate { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    public TaskCompletionSource SetSourceEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
     public TaskCompletionSource StartEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     public DotNetObjectReference<BrowserMicrophoneSession>? SessionReference { get; private set; }
@@ -82,7 +94,7 @@ internal sealed class ScriptedJsModule : IJSRuntime, IJSObjectReference
             "permission" => new BrowserPermissionResult { State = PermissionState },
             "requestAccess" => new BrowserAcquireResult { ErrorName = AcquireError },
             "acquire" => await AcquireAsync(args).ConfigureAwait(false),
-            "setSourceEnabled" => RecordSourceEnabled(args),
+            "setSourceEnabled" => await SetSourceAsync(args).ConfigureAwait(false),
             "isLive" => Live,
             "trackProcessing" => Track,
             "start" => await StartAsync(args, cancellationToken).ConfigureAwait(false),
@@ -121,13 +133,30 @@ internal sealed class ScriptedJsModule : IJSRuntime, IJSObjectReference
             await AcquireGate.Task.ConfigureAwait(false);
         }
 
+        if (MalformedAcquire)
+        {
+            return new BrowserAcquireResult();
+        }
+
         return string.IsNullOrEmpty(AcquireError)
             ? new BrowserAcquireResult { SessionId = "session-1" }
             : new BrowserAcquireResult { ErrorName = AcquireError };
     }
 
-    private object? RecordSourceEnabled(object?[]? args)
+    private async Task<object?> SetSourceAsync(object?[]? args)
     {
+        SetSourceEntered.TrySetResult();
+        if (PauseSetSource)
+        {
+            await SetSourceGate.Task.ConfigureAwait(false);
+        }
+
+        if (FailNextSetSource)
+        {
+            FailNextSetSource = false;
+            throw new JSException("The browser rejected the source switch.");
+        }
+
         if (args is { Length: > 1 } && args[1] is bool enabled)
         {
             SourceEnabled.Add(enabled);
@@ -153,7 +182,8 @@ internal sealed class ScriptedJsModule : IJSRuntime, IJSObjectReference
             await StartGate.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
         }
 
-        var sampleRate = StartSampleRateHz ?? ReadInt(args, "targetSampleRate", 16_000);
+        RequestedSampleRateHz = ReadInt(args, "targetSampleRate", 16_000);
+        var sampleRate = StartSampleRateHz ?? RequestedSampleRateHz.Value;
         var chunkMilliseconds = ReadInt(args, "chunkMilliseconds", 20);
         return new BrowserStartResult
         {

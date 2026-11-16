@@ -130,11 +130,12 @@ public sealed class BrowserMicrophoneHold : IAsyncDisposable
     public Task<IMicrophoneSession> StartAsync(
         MicrophoneCaptureRequest request,
         CancellationToken cancellationToken = default)
-        => StartAsync(request, releaseDeviceOnStop: false, cancellationToken);
+        => StartAsync(request, releaseDeviceOnStop: false, onCaptureFault: null, cancellationToken);
 
     internal async Task<IMicrophoneSession> StartAsync(
         MicrophoneCaptureRequest request,
         bool releaseDeviceOnStop,
+        Func<Exception, Task>? onCaptureFault,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -174,6 +175,7 @@ public sealed class BrowserMicrophoneHold : IAsyncDisposable
                     () => _capture.ClearActive(session));
                 reference = DotNetObjectReference.Create(session);
                 session.AttachReference(reference);
+                session.AttachFaultObserver(onCaptureFault);
                 if (!_capture.TryReserve(session))
                 {
                     _startInFlight = 0;

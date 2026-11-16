@@ -34,3 +34,11 @@ Linux und Windows prüfen den Ladeweg. Ob ein Host ein Aufnahmegerät hat, ist e
 `net11` packt und lädt die qualifizierten Pakete erst hoch, wenn `native-linux` und `native-windows` erfolgreich waren. Der Release prüft alle drei Jobnamen. Ein einzelner erfolgreicher Job genügt nicht.
 
 Das einzige Ziel ist `net11.0`. Das OpenTK-Asset ist `lib/netcoreapp3.1` und wird von diesem Ziel wiederhergestellt. Ein aelteres Ziel wird nicht angeboten.
+
+## Einseitige Verbrauchergrenze
+
+`BrowserCaptureController` besitzt Erwerb, Wiederverwendung, Stopp und Freigabe einer Browserquelle. Das Format, die Wartungskapazitaet und der Zustand nach Abbruch kommen vom Aufrufer. `PcmFormat.Default` ist die Bibliotheksvorgabe und keine Annahme einer bestimmten Anwendung. `BrowserCaptureLease` liefert Bloecke aus der begrenzten Sitzung und haelt keine zweite Warteschlange. Ein Stopp beendet die Lieferung, gibt die Quelle aber nicht frei. Erst Freigabe oder ein fehlgeschlagener Start beendet die Pacht.
+
+`PcmHistoryRing.Read` kopiert in einen vom Aufrufer gestellten Puffer. `ReadRightSized` liefert eine neue, genau passende Kopie und schiebt den Cursor vor. `Pcm16LeBlockAnalyzer` misst Dauer und mittlere absolute Amplitude aus dem Block und einer positiven Abtastrate. Ein `PcmFormat` bleibt gueltig. Die Chunk-Dauer ist keine Eingabe der Messung. Schwellen und Dialog bleiben ausserhalb der Bibliothek.
+
+Ein Test durchsucht `src`, `samples`, `benchmarks` und `tests`. Ein Treffer auf den Namensraum der Sprachanwendung ist ein Fehler. Kommentare mit der rechtlichen Herkunft bleiben erlaubt. Projektdateien werden einschliesslich Kommentaren geprueft. Beispiele und CI binden keine Sprach- oder Dialoganwendung ein.

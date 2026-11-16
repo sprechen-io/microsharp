@@ -45,6 +45,8 @@ Install OpenAL Soft before opening a device. On Linux that is `libopenal.so.1`. 
 
 The module is served from `_content/MicroSharp.Browser/microsharp-capture.js`. The worklet resamples to the requested rate and posts 16-bit chunks. Register `AddMicroSharpBrowser` only when `IJSRuntime` is already registered, or construct `BrowserMicrophoneCapture` directly. This adapter cannot capture in a console process.
 
+`BrowserCaptureController` besitzt Erwerb, Wiederverwendung, Stopp und Freigabe einer Browserquelle. Das Blazor-Beispiel zeigt diese Steuerung mit der gewaehlten Rate. `ReadRightSized` liefert die passende Kopie aus dem PCM-Verlauf.
+
 ## Samples
 
 `samples/MicroSharp.Console` is an ordinary .NET consumer:
@@ -53,7 +55,7 @@ The module is served from `_content/MicroSharp.Browser/microsharp-capture.js`. T
 dotnet run --project samples/MicroSharp.Console -- --device <openal-capture-name>
 ```
 
-`--list` prints capture names and does not open a device. `--virtual` reads one in-process tone chunk. An unknown `--device` name exits with code 3 and does not fall back to the default device.
+`--list` prints capture names and does not open a device. `--virtual` reads one in-process tone chunk and copies it with `ReadRightSized`. An unknown `--device` name exits with code 3 and does not fall back to the default device.
 
 `samples/MicroSharp.BlazorWasm` is the WebAssembly consumer. It starts capture only from the button.
 

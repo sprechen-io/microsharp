@@ -220,6 +220,64 @@ public sealed class PcmHistoryRingTests
         Assert.Equal(0, allocated);
     }
 
+    [Fact]
+    public void ReadRightSized_returns_an_exact_copy_and_advances_the_cursor()
+    {
+        var ring = new PcmHistoryRing(Format, TimeSpan.FromMilliseconds(1_000));
+        var payload = Pattern(Format.BytesPerChunk, seed: 3);
+        ring.Write(payload);
+        var cursor = ring.OpenCursor(PcmHistoryCursorOrigin.Earliest);
+
+        var first = ring.ReadRightSized(ref cursor, 5);
+        var second = ring.ReadRightSized(ref cursor, payload.Length);
+
+        Assert.Equal(payload.AsSpan(0, 5).ToArray(), first);
+        Assert.Equal(payload.AsSpan(5).ToArray(), second);
+        Assert.Equal(payload.Length, cursor.BytePosition);
+        Assert.Null(ring.ReadRightSized(ref cursor, payload.Length));
+        Assert.Equal(payload.Length, cursor.BytePosition);
+    }
+
+    [Fact]
+    public void ReadRightSized_rejects_an_empty_limit_and_keeps_stale_and_future_failures()
+    {
+        var ring = new PcmHistoryRing(Format, TimeSpan.FromMilliseconds(20));
+        var cursor = ring.OpenCursor(PcmHistoryCursorOrigin.Earliest);
+        var empty = Assert.Throws<ArgumentOutOfRangeException>(() => ring.ReadRightSized(ref cursor, 0));
+        Assert.Equal("maxBytes", empty.ParamName);
+
+        var future = new PcmHistoryCursor(4);
+        var futureError = Assert.Throws<PcmHistoryCursorInvalidException>(() => ring.ReadRightSized(ref future, 4));
+        Assert.Equal(4, future.BytePosition);
+        Assert.Equal(0, futureError.WriteBytePosition);
+
+        ring.Write(Pattern(ring.CapacityBytes + 6, seed: 9));
+        var stale = new PcmHistoryCursor(0);
+        Assert.Throws<PcmHistoryCursorStaleException>(() => ring.ReadRightSized(ref stale, 4));
+        Assert.Equal(0, stale.BytePosition);
+    }
+
+    [Fact]
+    public void ReadRightSized_allocates_the_returned_array_after_warmup()
+    {
+        var ring = new PcmHistoryRing(Format, TimeSpan.FromMilliseconds(1_000));
+        var payload = Pattern(64);
+        ring.Write(payload);
+        var warmup = ring.OpenCursor(PcmHistoryCursorOrigin.Earliest);
+        _ = ring.ReadRightSized(ref warmup, 64);
+        ring.Write(payload);
+        var cursor = ring.OpenCursor(PcmHistoryCursorOrigin.Earliest);
+
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        var copy = ring.ReadRightSized(ref cursor, 64);
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        Assert.NotNull(copy);
+        Assert.Equal(64, copy.Length);
+        Assert.True(allocated >= 64, $"allocated {allocated}");
+        Assert.True(allocated < 64 * 8, $"allocated {allocated}");
+    }
+
     private static byte[] Pattern(int byteCount, int seed = 0)
     {
         var data = new byte[byteCount];

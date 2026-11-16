@@ -126,7 +126,7 @@ internal sealed class BrowserPageRuntime : IJSRuntime, IJSObjectReference, IAsyn
         var status = await _page.EvaluateAsync<BrowserPumpStatus>("() => window.microsharpE2E.takeStatus()").ConfigureAwait(false);
         if (!string.IsNullOrEmpty(status?.Fault))
         {
-            _sink.OnCaptureFault(status.Fault);
+            await _sink.OnCaptureFault(status.Fault).ConfigureAwait(false);
         }
 
         if (status?.Chunks is null)

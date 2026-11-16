@@ -8,7 +8,7 @@
 
 <h1>Mikrofon</h1>
 
-<p id="mic-flags">Browser-Host: @_requiresBrowser, Systemgeraet: @_capturesDevice</p>
+<p id="mic-flags">Browser-Host: @_requiresBrowser, Systemgeraet: @_capturesDevice, Rate: <span id="mic-rate">@_rateHz</span></p>
 <p id="mic-status">@_status</p>
 <p>Bloecke: <span id="mic-chunks">@_chunks</span>, letzte Laenge: <span id="mic-bytes">@_lastBytes</span>, Spitze: <span id="mic-peak">@_peak</span></p>
 <p>Dauer: <span id="mic-duration">@_durationMs</span>, mittlere absolute Amplitude: <span id="mic-mean">@_meanAbsolute</span>, Verlauf: <span id="mic-history">@_historyBytes</span></p>
@@ -18,8 +18,14 @@
 <button id="mic-release" @onclick="ReleaseAsync">Freigabe</button>
 
 @code {
-    private BrowserMicrophoneCapture? _capture;
-    private IMicrophoneSession? _session;
+    private readonly BrowserCaptureControllerOptions _options = new()
+    {
+        Format = new PcmFormat(16_000, TimeSpan.FromMilliseconds(20)),
+    };
+
+    private BrowserCaptureController? _controller;
+    private BrowserCaptureLease? _lease;
+    private int _rateHz = 16_000;
     private bool _requiresBrowser;
     private bool _capturesDevice;
     private int _chunks;
@@ -29,6 +35,7 @@
     private int _meanAbsolute;
     private long _historyBytes;
     private PcmHistoryRing? _history;
+    private PcmHistoryCursor _cursor;
     private string _status = "idle";
 
     private async Task StartAsync()
@@ -41,15 +48,18 @@
         _meanAbsolute = 0;
         _historyBytes = 0;
         _history = null;
-        _capture = new BrowserMicrophoneCapture(Js);
-        _requiresBrowser = _capture.RequiresBrowserHost;
-        _capturesDevice = _capture.CapturesOperatingSystemDevice;
+        var flags = new BrowserMicrophoneCapture(Js);
+        _requiresBrowser = flags.RequiresBrowserHost;
+        _capturesDevice = flags.CapturesOperatingSystemDevice;
+        _rateHz = _options.Format.SampleRateHz;
+        _controller = new BrowserCaptureController(Js, _options);
         try
         {
-            _session = await _capture.StartAsync(new MicrophoneCaptureRequest());
-            _history = new PcmHistoryRing(_session.Format, TimeSpan.FromSeconds(1));
+            _lease = await _controller.StartAsync(_options.Format);
+            _history = new PcmHistoryRing(_options.Format, TimeSpan.FromSeconds(1));
+            _cursor = _history.OpenCursor(PcmHistoryCursorOrigin.Latest);
             _status = "running";
-            _ = ReadAsync(_session);
+            _ = ReadAsync(_lease);
         }
         catch (Exception exception)
         {
@@ -57,22 +67,26 @@
         }
     }
 
-    private async Task ReadAsync(IMicrophoneSession session)
+    private async Task ReadAsync(BrowserCaptureLease lease)
     {
         try
         {
-            await foreach (var chunk in session.ReadChunksAsync())
+            await foreach (var payload in lease.ReadPayloadsAsync())
             {
                 _chunks++;
-                _lastBytes = chunk.Payload.Length;
-                _peak = Math.Max(_peak, Peak(chunk.Payload));
+                _lastBytes = payload.Length;
+                _peak = Math.Max(_peak, Peak(payload));
                 if (_history is not null)
                 {
-                    _history.Write(chunk.Payload);
-                    var analysis = Pcm16LeBlockAnalyzer.Analyze(chunk.Payload, session.Format);
-                    _durationMs = analysis.DurationMilliseconds.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
-                    _meanAbsolute = analysis.MeanAbsoluteAmplitude;
-                    _historyBytes = _history.WriteBytePosition;
+                    _history.Write(payload);
+                    var copy = _history.ReadRightSized(ref _cursor, payload.Length);
+                    if (copy is not null)
+                    {
+                        var analysis = Pcm16LeBlockAnalyzer.Analyze(copy, _options.Format);
+                        _durationMs = analysis.DurationMilliseconds.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
+                        _meanAbsolute = analysis.MeanAbsoluteAmplitude;
+                        _historyBytes = copy.Length;
+                    }
                 }
 
                 await InvokeAsync(StateHasChanged);
@@ -93,24 +107,25 @@
 
     private async Task StopAsync()
     {
-        if (_session is not null)
+        if (_controller is not null)
         {
-            await _session.StopAsync();
+            await _controller.StopAsync();
             _status = "stopped";
         }
     }
 
     private async Task ReleaseAsync()
     {
-        if (_session is not null)
+        if (_lease is not null)
         {
-            await _session.DisposeAsync();
-            _session = null;
+            await _lease.DisposeAsync();
+            _lease = null;
         }
 
-        if (_capture is not null)
+        if (_controller is not null)
         {
-            _capture = null;
+            await _controller.ReleaseAsync();
+            _controller = null;
             _status = "released";
         }
     }

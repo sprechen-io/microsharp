@@ -46,11 +46,12 @@ if (args is ["--virtual"])
     {
         var history = new PcmHistoryRing(session.Format, TimeSpan.FromSeconds(1));
         history.Write(chunk.Payload);
-        var destination = new byte[chunk.Payload.Length];
-        var read = history.Read(history.OpenCursor(PcmHistoryCursorOrigin.Earliest), destination);
-        var analysis = Pcm16LeBlockAnalyzer.Analyze(destination.AsSpan(0, read), session.Format);
+        var cursor = history.OpenCursor(PcmHistoryCursorOrigin.Earliest);
+        var copy = history.ReadRightSized(ref cursor, chunk.Payload.Length)
+            ?? throw new InvalidOperationException("The history read returned no bytes.");
+        var analysis = Pcm16LeBlockAnalyzer.Analyze(copy, session.Format);
         Console.WriteLine(chunk.Payload.Length);
-        Console.WriteLine(string.Create(CultureInfo.InvariantCulture, $"historyBytes={read}"));
+        Console.WriteLine(string.Create(CultureInfo.InvariantCulture, $"historyBytes={copy.Length}"));
         Console.WriteLine(string.Create(CultureInfo.InvariantCulture, $"durationMs={analysis.DurationMilliseconds:0.###}"));
         Console.WriteLine(string.Create(CultureInfo.InvariantCulture, $"meanAbsoluteAmplitude={analysis.MeanAbsoluteAmplitude}"));
         break;

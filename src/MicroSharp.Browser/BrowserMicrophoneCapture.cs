@@ -160,7 +160,7 @@ public sealed class BrowserMicrophoneCapture : IMicrophoneCapture
 
         try
         {
-            return await prepared.Hold.StartAsync(request, releaseDeviceOnStop: true, cancellationToken)
+            return await prepared.Hold.StartAsync(request, releaseDeviceOnStop: true, onCaptureFault: null, cancellationToken)
                 .ConfigureAwait(false);
         }
         catch

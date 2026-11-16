@@ -13,12 +13,30 @@ namespace MicroSharp.Processing;
 public static class Pcm16LeBlockAnalyzer
 {
     /// <summary>
-    /// Measures <paramref name="pcm16Le"/> at <paramref name="format"/>.
+    /// Measures <paramref name="pcm16Le"/> at the sample rate of <paramref name="format"/>.
     /// A trailing partial sample is ignored. An empty block returns zeros.
+    /// The chunk duration is not an input.
     /// </summary>
     public static PcmBlockAnalysis Analyze(ReadOnlySpan<byte> pcm16Le, PcmFormat format)
     {
         ArgumentNullException.ThrowIfNull(format);
+        return Analyze(pcm16Le, format.SampleRateHz);
+    }
+
+    /// <summary>
+    /// Measures <paramref name="pcm16Le"/> at <paramref name="sampleRateHz"/>.
+    /// A trailing partial sample is ignored. An empty block returns zeros.
+    /// </summary>
+    public static PcmBlockAnalysis Analyze(ReadOnlySpan<byte> pcm16Le, int sampleRateHz)
+    {
+        if (sampleRateHz <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(sampleRateHz),
+                sampleRateHz,
+                "The sample rate must be positive.");
+        }
+
         var sampleCount = pcm16Le.Length / PcmFormat.BytesPerSample;
         if (sampleCount <= 0)
         {
@@ -33,7 +51,7 @@ public static class Pcm16LeBlockAnalyzer
             sumAbsolute += Math.Abs((int)sample);
         }
 
-        var durationMilliseconds = sampleCount * 1000d / format.SampleRateHz;
+        var durationMilliseconds = sampleCount * 1000d / sampleRateHz;
         var meanAbsoluteAmplitude = (int)(sumAbsolute / sampleCount);
         return new PcmBlockAnalysis(durationMilliseconds, meanAbsoluteAmplitude);
     }

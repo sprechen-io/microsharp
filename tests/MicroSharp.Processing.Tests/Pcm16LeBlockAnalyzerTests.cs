@@ -80,6 +80,21 @@ public sealed class Pcm16LeBlockAnalyzerTests
     }
 
     [Fact]
+    public void Sample_rate_matches_the_format_overload_and_rejects_a_non_positive_rate()
+    {
+        var pcm = Pcm(1000, -500, 250, -250);
+        var fromFormat = Pcm16LeBlockAnalyzer.Analyze(pcm, new PcmFormat(8_000, TimeSpan.FromMilliseconds(20)));
+        var fromRate = Pcm16LeBlockAnalyzer.Analyze(pcm, 8_000);
+
+        Assert.Equal(fromFormat.DurationMilliseconds, fromRate.DurationMilliseconds, precision: 5);
+        Assert.Equal(fromFormat.MeanAbsoluteAmplitude, fromRate.MeanAbsoluteAmplitude);
+        Assert.Equal(0.5d, fromRate.DurationMilliseconds, precision: 5);
+        var rejected = Assert.Throws<ArgumentOutOfRangeException>(() => Pcm16LeBlockAnalyzer.Analyze(pcm, 0));
+        Assert.Equal("sampleRateHz", rejected.ParamName);
+        Assert.Throws<ArgumentOutOfRangeException>(() => Pcm16LeBlockAnalyzer.Analyze(pcm, -16_000));
+    }
+
+    [Fact]
     public void Null_format_is_rejected_and_analysis_allocates_nothing_after_warmup()
     {
         Assert.Throws<ArgumentNullException>(() => Pcm16LeBlockAnalyzer.Analyze([0, 0], null!));

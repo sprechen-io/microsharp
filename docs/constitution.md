@@ -23,6 +23,9 @@ Die qualifizierten Bibliothekspakete werden auf NuGet.org veroeffentlicht. Vor e
 ### VII. Kommentare ausschliesslich Englisch
 Alle Kommentare in Quelle, Tests, Beispielen, Skripten und Konfiguration MUESSEN ausschliesslich Englisch sein. Das umfasst Inline-Kommentare, Blockkommentare und XML-Dokumentationskommentare. XML-Dokumentationskommentare sind ausdruecklich Englisch. Oeffentliche Markdown-Prosa bleibt Deutsch mit ae/oe/ue. Ausnahmetexte bleiben Englisch. Rechtliche Herkunfts- und Urhebervermerke bleiben erhalten.
 
+### VIII. Einseitige Verbrauchergrenze
+MicroSharp besitzt die wiederverwendbare Aufnahme: Geraet und Browserquelle, Aufnahmegraf und Blocklieferung, Format, Lebenszyklus und Besitz einer Mikrofonquelle, begrenzte Aufnahmewarteschlange, PCM-Verlauf und Lesemechanik sowie Blockmessung. Projekte und Typen dieser Bibliothek duerfen nicht von einer Sprach- oder Dialoganwendung, deren Vertraegen oder einem Quellcheckout einer solchen Anwendung abhaengen. Eine Anwendung verbraucht versionierte Pakete und oeffentliche Bibliotheks-APIs. Schwellen, Wake-Word, Dialog, Sprachdienst und die Entscheidung, wann gehoert oder eine Aeusserung abgeschlossen wird, bleiben bei der Anwendung. Die Bibliothek enthaelt keinen anwendungsspezifischen Shim, nur damit alte Tests bestehen. Beispiele, Tests und CI laufen ohne eine solche Anwendung. Ein Architekturtest weist eine solche Abhaengigkeit zurueck. Rechtliche Herkunftskommentare bleiben erlaubt.
+
 ## Plattform- und Laufzeitgrenzen
 
 Aktuelle Produktartefakte duerfen nur Faehigkeiten nutzen, die eine offizielle .NET-11-, C#- oder Blazor-Quelle als verfuegbar ausweist und die ein Build, eine Veroeffentlichung oder eine Consumer-Pruefung beobachtet. Vorschau-Speichersicherheit bleibt aus. Die unterstuetzte PCM-Form ist vorzeichenbehaftetes 16-Bit-Little-Endian-Mono. Linux und Windows pruefen den OpenAL-Ladeweg in der CI. Physische Aufnahme bleibt eine eigene Grenze. macOS bleibt ohne Lauf aus der Unterstuetzungsaussage heraus.
@@ -33,6 +36,6 @@ Rote Tests duerfen nicht durch Weglassen, gesenkte Schwellen oder falsche Erfolg
 
 ## Governance
 
-Diese Verfassung ersetzt fuer MicroSharp entgegenstehende aeltere Doppellauf- und Zielvorgaben. Sie gilt nicht fuer andere abgeschlossene Auftraege. Aenderungen werden in dieser Datei festgehalten, semantisch versioniert und mit dem Aenderungsdatum versehen. Eine inkompatible Streichung oder Umdeutung eines Grundsatzes hebt die Hauptversion. Ein neuer Grundsatz oder ein wesentlich erweiterter Abschnitt hebt die Nebenversion. Reine Klarstellungen heben die Patchversion. Reviews pruefen die Einhaltung: nur `net11.0`, ehrliche Plattformaussagen, getrennte echte Aufnahmewege, Herkunft, qualifiziertes NuGet.org-Release und englische Kommentare einschliesslich XML-Dokumentation.
+Diese Verfassung ersetzt fuer MicroSharp entgegenstehende aeltere Doppellauf- und Zielvorgaben. Sie gilt nicht fuer andere abgeschlossene Auftraege. Aenderungen werden in dieser Datei festgehalten, semantisch versioniert und mit dem Aenderungsdatum versehen. Eine inkompatible Streichung oder Umdeutung eines Grundsatzes hebt die Hauptversion. Ein neuer Grundsatz oder ein wesentlich erweiterter Abschnitt hebt die Nebenversion. Reine Klarstellungen heben die Patchversion. Reviews pruefen die Einhaltung: nur `net11.0`, ehrliche Plattformaussagen, getrennte echte Aufnahmewege, Herkunft, qualifiziertes NuGet.org-Release, englische Kommentare einschliesslich XML-Dokumentation und die einseitige Verbrauchergrenze.
 
-**Version**: 2.0.0 | **Ratified**: 2026-11-15 | **Last Amended**: 2026-11-16T14:20:12Z
+**Version**: 2.1.0 | **Ratified**: 2026-11-15 | **Last Amended**: 2026-11-16T19:36:39Z

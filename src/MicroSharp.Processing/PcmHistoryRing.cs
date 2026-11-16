@@ -1,3 +1,5 @@
+using System.Buffers;
+
 namespace MicroSharp.Processing;
 
 /// <summary>
@@ -9,8 +11,9 @@ namespace MicroSharp.Processing;
 /// Derived from the in-memory PCM ring in sprechen-io/sprechen-io commit
 /// 1d603f3a75f408d1d11010cd49190e110979803b. The live capture queue in
 /// <c>MicroSharp</c> remains a separate bounded transport. This ring does not
-/// open a device and does not segment speech. Write and read copy into storage
+/// open a device and does not segment speech. Write and <see cref="Read"/> copy into storage
 /// that was allocated once. They do not allocate on the hot path.
+/// <see cref="ReadRightSized"/> returns a new array that holds only the bytes read.
 /// </remarks>
 public sealed class PcmHistoryRing
 {
@@ -213,6 +216,37 @@ public sealed class PcmHistoryRing
             }
 
             return toRead;
+        }
+    }
+
+    /// <summary>
+    /// Copies at most <paramref name="maxBytes"/> into a new array and advances <paramref name="cursor"/>.
+    /// Returns <see langword="null"/> when the cursor is already caught up.
+    /// A stale or future cursor fails with the same exception as <see cref="Read"/>.
+    /// </summary>
+    public byte[]? ReadRightSized(ref PcmHistoryCursor cursor, int maxBytes)
+    {
+        if (maxBytes < 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(maxBytes), maxBytes, "The read limit must be at least one byte.");
+        }
+
+        var scratch = ArrayPool<byte>.Shared.Rent(maxBytes);
+        try
+        {
+            var read = Read(cursor, scratch.AsSpan(0, maxBytes));
+            if (read == 0)
+            {
+                return null;
+            }
+
+            var copy = scratch.AsSpan(0, read).ToArray();
+            cursor = new PcmHistoryCursor(cursor.BytePosition + read);
+            return copy;
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(scratch);
         }
     }
 

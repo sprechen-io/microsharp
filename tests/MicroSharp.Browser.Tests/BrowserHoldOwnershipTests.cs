@@ -198,7 +198,7 @@ public sealed class BrowserHoldOwnershipTests
         var hold = await HoldAsync(module);
         var request = new MicrophoneCaptureRequest();
         var first = await hold.StartAsync(request, CancellationToken.None);
-        ((BrowserMicrophoneSession)first).OnCaptureFault("The capture graph failed.");
+        await ((BrowserMicrophoneSession)first).OnCaptureFault("The capture graph failed.");
         Assert.Equal(MicrophoneSessionState.Faulted, first.State);
         Assert.DoesNotContain("disconnect", module.Calls);
 

@@ -41,3 +41,9 @@ Die qualifizierende CI besteht aus `native-linux`, `native-windows` und `net11`.
 ## Messungen
 
 Die gemeinsame Warteschlange wird in einem eigenen, nicht paketierbaren `net11.0`-Projekt gemessen: Kopie und Besitz, Einreihen und Lesen, volle Warteschlange mit `DropOldest`, und der abbrechbare `Wait`-Weg. Dieselbe Messstrecke prueft den PCM-Verlauf und die PCM16LE-Blockmessung. Das bleibt eine CoreCLR-Messung. Das Format der Messung ist 16000 Hz und 20 ms. Aufbau und das Füllen der Warteschlange liegen außerhalb des Messfensters. Ein Dry-Lauf in der CI zeigt nur, dass das Gerüst startet. Eine Auswahl ohne erfolgreiche Messung endet mit einem Fehlercode. Längere Läufe sind ein manueller Workflow auf Windows und Linux und schreiben Markdown und JSON. Die Zahlen gelten für CoreCLR. Die Browseraufnahme wird dort nicht gemessen. Eine Dauer auf einem geteilten Rechner ist keine Abnahmeschwelle. Deterministische Tests prüfen Kopie, Begrenzung und Verlustzählung ohne Zeitgrenze.
+
+## Einseitige Verbrauchergrenze
+
+Die Bibliothek ist die einzige Implementierung der wiederverwendbaren Aufnahme. Eine Anwendung bindet die versionierten Pakete und ruft die oeffentlichen APIs auf. Sie darf duenne Adapter fuer eigene Vertraege behalten. Sie behaelt Sprachschwellen, Wake-Word, Dialog, Sprachdienst und die Entscheidung ueber Hoeren und Aeusserungsende. Die Bibliothek uebernimmt diese Regeln nicht.
+
+`BrowserCaptureController` und `BrowserCaptureLease` besitzen den Browser-Lebenszyklus. `PcmHistoryRing.ReadRightSized` und `Pcm16LeBlockAnalyzer` sind die allgemeinen Lese- und Messmechaniken. Die Messung braucht eine positive Abtastrate. Eine nicht positive Rate wird abgelehnt, statt eine zweite Messung in der Anwendung zu behalten. Beispiele fuer Konsole und Blazor nutzen diese APIs ohne eine Sprachanwendung. Ein Architekturtest lehnt eine Abhaengigkeit der Bibliothek von einer solchen Anwendung ab.

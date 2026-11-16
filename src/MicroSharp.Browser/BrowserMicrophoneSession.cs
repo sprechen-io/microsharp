@@ -10,6 +10,7 @@ public sealed class BrowserMicrophoneSession : IMicrophoneSession
     private readonly MicrophoneSession _session;
     private readonly Func<CancellationToken, Task> _stopBrowser;
     private readonly Action _disposed;
+    private Func<Exception, Task>? _onCaptureFault;
     private DotNetObjectReference<BrowserMicrophoneSession>? _reference;
     private int _disposeState;
 
@@ -62,13 +63,20 @@ public sealed class BrowserMicrophoneSession : IMicrophoneSession
         }
     }
 
-    /// <summary>Called by the browser when capture fails.</summary>
+    /// <summary>Called by the browser when capture fails. The returned task includes a registered observer.</summary>
     [JSInvokable]
-    public void OnCaptureFault(string? message)
+    public Task OnCaptureFault(string? message)
     {
-        _session.Complete(new MicrophoneException(
+        var error = new MicrophoneException(
             MicrophoneErrorCode.Unavailable,
-            string.IsNullOrWhiteSpace(message) ? "Browser microphone capture failed." : message));
+            string.IsNullOrWhiteSpace(message) ? "Browser microphone capture failed." : message);
+        _session.Complete(error);
+        return _onCaptureFault?.Invoke(error) ?? Task.CompletedTask;
+    }
+
+    internal void AttachFaultObserver(Func<Exception, Task>? onCaptureFault)
+    {
+        _onCaptureFault = onCaptureFault;
     }
 
     /// <summary>Called by the browser after the session is released.</summary>
