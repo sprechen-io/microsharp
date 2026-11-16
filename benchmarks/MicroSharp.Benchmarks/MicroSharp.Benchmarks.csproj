@@ -8,12 +8,13 @@
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
-    <Description>Measurements of the shared PCM queue. This project is not a product package.</Description>
+    <Description>Measurements of the shared PCM queue and the PCM history ring. This project is not a product package.</Description>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="BenchmarkDotNet" Version="0.16.0-preview.2" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\MicroSharp\MicroSharp.csproj" />
+    <ProjectReference Include="..\..\src\MicroSharp.Processing\MicroSharp.Processing.csproj" />
   </ItemGroup>
 </Project>

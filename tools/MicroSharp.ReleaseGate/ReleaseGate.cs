@@ -16,7 +16,7 @@ public static class ReleaseGate
     public static readonly string[] RequiredJobs = ["native-linux", "native-windows", "net11"];
     public const string NugetOrg = "https://api.nuget.org/v3/index.json";
 
-    private static readonly string[] PackageIds = ["MicroSharp", "MicroSharp.Browser", "MicroSharp.Native"];
+    private static readonly string[] PackageIds = ["MicroSharp", "MicroSharp.Browser", "MicroSharp.Native", "MicroSharp.Processing"];
     private static readonly Regex VersionPattern = new(@"^\d+\.\d+\.\d+$", RegexOptions.CultureInvariant);
     private static readonly Regex ShaPattern = new(@"^[0-9a-f]{40}$", RegexOptions.CultureInvariant);
     private static readonly JsonSerializerOptions ManifestOptions = new() { WriteIndented = true };
@@ -31,6 +31,7 @@ public static class ReleaseGate
             "staticwebassets/pcm-recorder-processor.js",
         ],
         ["MicroSharp.Native"] = ["lib/net11.0/MicroSharp.Native.dll"],
+        ["MicroSharp.Processing"] = ["lib/net11.0/MicroSharp.Processing.dll"],
     };
 
     public static JsonObject WriteManifest(string packageDir, string propsPath, string commit, long runId, string output)

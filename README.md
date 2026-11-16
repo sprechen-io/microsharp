@@ -11,6 +11,9 @@ The portable package does not open a device. `MicroSharp.Browser` captures in a 
 | `MicroSharp` | PCM contract and session. No microphone and no browser API. |
 | `MicroSharp.Browser` | Blazor and WebAssembly capture through `IJSRuntime`. |
 | `MicroSharp.Native` | `OpenAlMicrophoneCapture` and `VirtualMicrophoneCapture`. |
+| `MicroSharp.Processing` | Begrenzter PCM-Verlauf mit Byte-Cursorn und PCM16LE-Blockmessung. Kein Mikrofon und keine Sprachschwelle. |
+
+`MicroSharp.Processing` haelt einen festen PCM-Verlauf mit unabhaengigen Byte-Cursorn und misst Dauer sowie mittlere absolute Amplitude eines PCM16LE-Blocks. Die lebende Aufnahmefolge bleibt in `MicroSharp`. Sprachschwellen, Segmentierung und Dialog bleiben ausserhalb dieses Pakets.
 
 The only target is `net11.0`. The browser package references `Microsoft.AspNetCore.Components.Web` 11.0.0 and declares the `browser` platform. It does not reference the shared ASP.NET framework. Runtime Async stays off: on SDK 11.0.100 the WebAssembly interpreter rejected a runtime-async entry point and a runtime-async `WriteAsync`. The C# 15 collection-expression capacity argument is used for the bounded chunk queue.
 
@@ -34,7 +37,7 @@ The binding is `OpenTK.Audio.OpenAL` 4.9.4 (MIT). It calls `ALC.CaptureOpenDevic
 
 Install OpenAL Soft before opening a device. On Linux that is `libopenal.so.1`. On Windows the binding loads `openal32.dll`. A missing library is `Unavailable`, which is distinct from `DeviceNotFound`, and a test that needs the library fails in that case. The native library is not part of the NuGet package. The Windows CI download is OpenAL Soft 1.25.2, recorded in `native/openal-soft-windows.json`.
 
-`benchmarks/MicroSharp.Benchmarks` measures the shared PCM queue on CoreCLR. It is not a package. The CI Dry run only starts the harness. Measured runs are the manual `Benchmarks` workflow. Those numbers are not browser or WebAssembly results.
+`benchmarks/MicroSharp.Benchmarks` measures the shared PCM queue, the PCM history ring, and PCM16LE block analysis on CoreCLR. It is not a package. The CI Dry run only starts the harness. Measured runs are the manual `Benchmarks` workflow. Those numbers are not browser or WebAssembly results.
 
 `VirtualMicrophoneCapture` does not open an operating-system device. Use it for tests and for PCM that already exists in the process.
 

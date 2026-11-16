@@ -1,5 +1,7 @@
+using System.Globalization;
 using MicroSharp;
 using MicroSharp.Native;
+using MicroSharp.Processing;
 
 if (args is ["--list"])
 {
@@ -42,7 +44,15 @@ if (args is ["--virtual"])
     });
     await foreach (var chunk in session.ReadChunksAsync())
     {
+        var history = new PcmHistoryRing(session.Format, TimeSpan.FromSeconds(1));
+        history.Write(chunk.Payload);
+        var destination = new byte[chunk.Payload.Length];
+        var read = history.Read(history.OpenCursor(PcmHistoryCursorOrigin.Earliest), destination);
+        var analysis = Pcm16LeBlockAnalyzer.Analyze(destination.AsSpan(0, read), session.Format);
         Console.WriteLine(chunk.Payload.Length);
+        Console.WriteLine(string.Create(CultureInfo.InvariantCulture, $"historyBytes={read}"));
+        Console.WriteLine(string.Create(CultureInfo.InvariantCulture, $"durationMs={analysis.DurationMilliseconds:0.###}"));
+        Console.WriteLine(string.Create(CultureInfo.InvariantCulture, $"meanAbsoluteAmplitude={analysis.MeanAbsoluteAmplitude}"));
         break;
     }
 

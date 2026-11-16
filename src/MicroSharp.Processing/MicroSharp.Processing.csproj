@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net11.0</TargetFramework>
+    <RootNamespace>MicroSharp.Processing</RootNamespace>
+    <AssemblyName>MicroSharp.Processing</AssemblyName>
+    <Description>Bounded PCM history and PCM16LE block analysis for MicroSharp. This package does not open a microphone and does not segment speech.</Description>
+    <PackageTags>microphone;audio;pcm</PackageTags>
+    <IsPackable>true</IsPackable>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MicroSharp\MicroSharp.csproj" />
+  </ItemGroup>
+</Project>

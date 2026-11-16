@@ -19,12 +19,13 @@ public static class PackedRestoreChecker
             "staticwebassets/microsharp-capture.js",
             "staticwebassets/pcm-recorder-processor.js",
         ],
+        ["MicroSharp.Processing"] = ["lib/net11.0/MicroSharp.Processing.dll"],
     };
 
     private static readonly Dictionary<string, string[]> RequiredByAssets = new(StringComparer.Ordinal)
     {
-        ["MicroSharp.Console"] = ["MicroSharp", "MicroSharp.Native"],
-        ["MicroSharp.BlazorWasm"] = ["MicroSharp", "MicroSharp.Browser"],
+        ["MicroSharp.Console"] = ["MicroSharp", "MicroSharp.Native", "MicroSharp.Processing"],
+        ["MicroSharp.BlazorWasm"] = ["MicroSharp", "MicroSharp.Browser", "MicroSharp.Processing"],
     };
 
     public static void Verify(

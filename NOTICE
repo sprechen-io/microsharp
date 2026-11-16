@@ -22,9 +22,12 @@ archive and loads it as openal32.dll for the test host only. The archive
 COPYING file is the GNU Library General Public License, Version 2. That
 binary is not part of this package. This notice is not legal advice.
 
-Queue measurements in benchmarks/MicroSharp.Benchmarks time this library's
-bounded PCM queue. They do not copy the source application's lookback ring
-or its speech segmentation.
+The bounded PCM history ring and the PCM16LE duration and mean-absolute-amplitude
+measurement in MicroSharp.Processing are derived from that same commit.
+Speech segmentation, thresholds, text-to-speech, wake words and dialog policy
+were not copied. Queue measurements in benchmarks/MicroSharp.Benchmarks time
+this library's bounded PCM queue and that history ring on CoreCLR. They are
+not browser or WebAssembly measurements.
 
 The name MicroSharp is also used by the public repository
 AnmiTaliDev/microsharp, a C# microcontroller compiler. That project is a

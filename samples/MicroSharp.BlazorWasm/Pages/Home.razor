@@ -2,6 +2,7 @@
 @inject IJSRuntime Js
 @using MicroSharp
 @using MicroSharp.Browser
+@using MicroSharp.Processing
 
 <PageTitle>MicroSharp</PageTitle>
 
@@ -10,6 +11,7 @@
 <p id="mic-flags">Browser-Host: @_requiresBrowser, Systemgeraet: @_capturesDevice</p>
 <p id="mic-status">@_status</p>
 <p>Bloecke: <span id="mic-chunks">@_chunks</span>, letzte Laenge: <span id="mic-bytes">@_lastBytes</span>, Spitze: <span id="mic-peak">@_peak</span></p>
+<p>Dauer: <span id="mic-duration">@_durationMs</span>, mittlere absolute Amplitude: <span id="mic-mean">@_meanAbsolute</span>, Verlauf: <span id="mic-history">@_historyBytes</span></p>
 
 <button id="mic-start" @onclick="StartAsync">Start</button>
 <button id="mic-stop" @onclick="StopAsync">Stopp</button>
@@ -23,6 +25,10 @@
     private int _chunks;
     private int _lastBytes;
     private int _peak;
+    private string _durationMs = "0";
+    private int _meanAbsolute;
+    private long _historyBytes;
+    private PcmHistoryRing? _history;
     private string _status = "idle";
 
     private async Task StartAsync()
@@ -31,12 +37,17 @@
         _chunks = 0;
         _lastBytes = 0;
         _peak = 0;
+        _durationMs = "0";
+        _meanAbsolute = 0;
+        _historyBytes = 0;
+        _history = null;
         _capture = new BrowserMicrophoneCapture(Js);
         _requiresBrowser = _capture.RequiresBrowserHost;
         _capturesDevice = _capture.CapturesOperatingSystemDevice;
         try
         {
             _session = await _capture.StartAsync(new MicrophoneCaptureRequest());
+            _history = new PcmHistoryRing(_session.Format, TimeSpan.FromSeconds(1));
             _status = "running";
             _ = ReadAsync(_session);
         }
@@ -55,6 +66,15 @@
                 _chunks++;
                 _lastBytes = chunk.Payload.Length;
                 _peak = Math.Max(_peak, Peak(chunk.Payload));
+                if (_history is not null)
+                {
+                    _history.Write(chunk.Payload);
+                    var analysis = Pcm16LeBlockAnalyzer.Analyze(chunk.Payload, session.Format);
+                    _durationMs = analysis.DurationMilliseconds.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
+                    _meanAbsolute = analysis.MeanAbsoluteAmplitude;
+                    _historyBytes = _history.WriteBytePosition;
+                }
+
                 await InvokeAsync(StateHasChanged);
             }
 

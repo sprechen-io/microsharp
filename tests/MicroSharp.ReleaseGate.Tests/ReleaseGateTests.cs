@@ -24,6 +24,7 @@ public sealed class ReleaseGateTests : IDisposable
         WritePackage("MicroSharp", "core-dll"u8.ToArray(), "core-symbols"u8.ToArray(), browserAssets: false);
         WritePackage("MicroSharp.Browser", "browser-dll"u8.ToArray(), "browser-symbols"u8.ToArray(), browserAssets: true);
         WritePackage("MicroSharp.Native", "native-dll"u8.ToArray(), "native-symbols"u8.ToArray(), browserAssets: false);
+        WritePackage("MicroSharp.Processing", "processing-dll"u8.ToArray(), "processing-symbols"u8.ToArray(), browserAssets: false);
     }
 
     public void Dispose()
@@ -44,6 +45,8 @@ public sealed class ReleaseGateTests : IDisposable
             "MicroSharp.Browser.0.1.0.snupkg",
             "MicroSharp.Native.0.1.0.nupkg",
             "MicroSharp.Native.0.1.0.snupkg",
+            "MicroSharp.Processing.0.1.0.nupkg",
+            "MicroSharp.Processing.0.1.0.snupkg",
         ];
         Assert.Equal(expected, paths.Select(path => Path.GetFileName(path) ?? string.Empty).ToArray());
     }
@@ -117,7 +120,7 @@ public sealed class ReleaseGateTests : IDisposable
         var latest = Run(300, createdAt: "2026-11-15T20:30:00Z");
         var manifest = Manifest(runId: 300);
         var paths = CheckCase(Runs(older, newerFailure, latest), Jobs(300), manifest);
-        Assert.Equal(6, paths.Count);
+        Assert.Equal(8, paths.Count);
     }
 
     [Fact]
@@ -181,6 +184,15 @@ public sealed class ReleaseGateTests : IDisposable
     {
         File.Delete(Path.Combine(_packages, "MicroSharp.Native.0.1.0.nupkg"));
         var error = Assert.Throws<ReleaseGateException>(() => Manifest());
+        Assert.Contains("missing", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RefusesAMissingProcessingPackage()
+    {
+        File.Delete(Path.Combine(_packages, "MicroSharp.Processing.0.1.0.nupkg"));
+        var error = Assert.Throws<ReleaseGateException>(() => Manifest());
+        Assert.Contains("MicroSharp.Processing.0.1.0.nupkg", error.Message, StringComparison.Ordinal);
         Assert.Contains("missing", error.Message, StringComparison.Ordinal);
     }
 
@@ -264,6 +276,8 @@ public sealed class ReleaseGateTests : IDisposable
         Assert.Equal("MicroSharp.Browser", ReleaseGate.PackageIdFromName("MicroSharp.Browser.0.1.0.nupkg"));
         Assert.Equal("MicroSharp.Native", ReleaseGate.PackageIdFromName("MicroSharp.Native.0.1.0.snupkg"));
         Assert.Equal("MicroSharp", ReleaseGate.PackageIdFromName("MicroSharp.0.1.0.nupkg"));
+        Assert.Equal("MicroSharp.Processing", ReleaseGate.PackageIdFromName("MicroSharp.Processing.0.1.0.nupkg"));
+        Assert.Equal("MicroSharp.Processing", ReleaseGate.PackageIdFromName("MicroSharp.Processing.0.1.0.snupkg"));
     }
 
     [Fact]
@@ -298,6 +312,22 @@ public sealed class ReleaseGateTests : IDisposable
         WriteCache(cache, "microsharp.browser", "staticwebassets/pcm-recorder-processor.js", "changed"u8.ToArray());
         WriteCache(cache, "microsharp.native", "lib/net11.0/MicroSharp.Native.dll", "native-dll"u8.ToArray());
         var error = Assert.Throws<ReleaseGateException>(() => ReleaseGate.CompareRestoredPayloads(_packages, cache, "0.1.0"));
+        Assert.Contains("does not match", error.Message, StringComparison.Ordinal);
+        Assert.Contains("pcm-recorder-processor.js", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RestoredProcessingPayloadMismatchFails()
+    {
+        var cache = Path.Combine(_root, "processing-cache");
+        WriteCache(cache, "microsharp", "lib/net11.0/MicroSharp.dll", "core-dll"u8.ToArray());
+        WriteCache(cache, "microsharp.browser", "lib/net11.0/MicroSharp.Browser.dll", "browser-dll"u8.ToArray());
+        WriteCache(cache, "microsharp.browser", "staticwebassets/microsharp-capture.js", "capture-js"u8.ToArray());
+        WriteCache(cache, "microsharp.browser", "staticwebassets/pcm-recorder-processor.js", "processor-js"u8.ToArray());
+        WriteCache(cache, "microsharp.native", "lib/net11.0/MicroSharp.Native.dll", "native-dll"u8.ToArray());
+        WriteCache(cache, "microsharp.processing", "lib/net11.0/MicroSharp.Processing.dll", "changed"u8.ToArray());
+        var error = Assert.Throws<ReleaseGateException>(() => ReleaseGate.CompareRestoredPayloads(_packages, cache, "0.1.0"));
+        Assert.Contains("MicroSharp.Processing", error.Message, StringComparison.Ordinal);
         Assert.Contains("does not match", error.Message, StringComparison.Ordinal);
     }
 
@@ -409,7 +439,7 @@ public sealed class ReleaseGateTests : IDisposable
             Console.SetError(previous);
         }
 
-        Assert.Equal(6, File.ReadAllLines(push).Length);
+        Assert.Equal(8, File.ReadAllLines(push).Length);
     }
 
     [Fact]

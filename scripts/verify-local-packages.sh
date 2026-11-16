@@ -30,6 +30,7 @@ cat >"$project/consumer.csproj" <<'EOF'
   <ItemGroup>
     <PackageReference Include="MicroSharp" Version="0.1.0" />
     <PackageReference Include="MicroSharp.Native" Version="0.1.0" />
+    <PackageReference Include="MicroSharp.Processing" Version="0.1.0" />
   </ItemGroup>
 </Project>
 EOF
@@ -44,12 +45,27 @@ cat >"$project/nuget.config" <<EOF
 </configuration>
 EOF
 cat >"$project/Program.cs" <<'EOF'
+using MicroSharp;
 using MicroSharp.Native;
+using MicroSharp.Processing;
 var capture = new OpenAlMicrophoneCapture(new OpenAlMicrophoneOptions("microsharp-absent-capture-device"));
 if (!capture.CapturesOperatingSystemDevice || capture.RequiresBrowserHost)
 {
     return 1;
 }
+
+var format = PcmFormat.Default;
+var ring = new PcmHistoryRing(format, TimeSpan.FromSeconds(1));
+var pcm = new byte[format.BytesPerChunk];
+ring.Write(pcm);
+var destination = new byte[pcm.Length];
+var read = ring.Read(ring.OpenCursor(PcmHistoryCursorOrigin.Earliest), destination);
+var analysis = Pcm16LeBlockAnalyzer.Analyze(destination.AsSpan(0, read), format);
+if (read != pcm.Length || analysis.DurationMilliseconds != 20d || analysis.MeanAbsoluteAmplitude != 0)
+{
+    return 4;
+}
+
 return capture.AdapterName == OpenAlMicrophoneCapture.AdapterId ? 0 : 1;
 EOF
 dotnet run --project "$project/consumer.csproj" --nologo
@@ -117,8 +133,21 @@ if [[ "$status" -ne 3 ]]; then
 fi
 
 virtual="$(dotnet run --project "$root/samples/MicroSharp.Console/MicroSharp.Console.csproj" --configuration Release --no-build -- --virtual)"
-if [[ "$virtual" != "640" ]]; then
-  echo "Expected one 640-byte virtual chunk, got: $virtual" >&2
+first_line="${virtual%%$'\n'*}"
+if [[ "$first_line" != "640" ]]; then
+  echo "Expected the first virtual line to be 640, got: $virtual" >&2
+  exit 1
+fi
+if ! printf '%s\n' "$virtual" | grep -qx 'historyBytes=640'; then
+  echo "Expected historyBytes=640, got: $virtual" >&2
+  exit 1
+fi
+if ! printf '%s\n' "$virtual" | grep -qx 'durationMs=20'; then
+  echo "Expected durationMs=20, got: $virtual" >&2
+  exit 1
+fi
+if ! printf '%s\n' "$virtual" | grep -Eq '^meanAbsoluteAmplitude=[1-9][0-9]*$'; then
+  echo "Expected a positive mean absolute amplitude, got: $virtual" >&2
   exit 1
 fi
 

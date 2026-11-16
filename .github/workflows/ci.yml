@@ -89,6 +89,9 @@ jobs:
             exit 1
           fi
 
+      - name: Dry-run the history benchmark harness
+        run: dotnet run --project benchmarks/MicroSharp.Benchmarks/MicroSharp.Benchmarks.csproj --configuration Release --no-build -- --job Dry --filter '*PcmHistoryBenchmarks*'
+
   native-windows:
     name: native-windows
     runs-on: windows-latest
@@ -133,6 +136,9 @@ jobs:
             echo "an empty benchmark selection exited 0" >&2
             exit 1
           fi
+
+      - name: Dry-run the history benchmark harness
+        run: dotnet run --project benchmarks/MicroSharp.Benchmarks/MicroSharp.Benchmarks.csproj --configuration Release --no-build -- --job Dry --filter '*PcmHistoryBenchmarks*'
 
   library:
     name: net11

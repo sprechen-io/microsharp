@@ -8,5 +8,6 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="MicroSharp.Native" Version="0.1.0" />
+    <PackageReference Include="MicroSharp.Processing" Version="0.1.0" />
   </ItemGroup>
 </Project>

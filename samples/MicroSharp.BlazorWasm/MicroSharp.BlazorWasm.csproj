@@ -14,6 +14,7 @@
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="11.0.0" />
     <PackageReference Include="Microsoft.AspNetCore.Components.Gateway" Version="11.0.0" PrivateAssets="all" />
     <PackageReference Include="MicroSharp.Browser" Version="0.1.0" />
+    <PackageReference Include="MicroSharp.Processing" Version="0.1.0" />
   </ItemGroup>
 
 </Project>

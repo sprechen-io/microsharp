@@ -10,6 +10,6 @@ Quelle der fachlichen Aufnahme ist https://github.com/sprechen-io/sprechen-io, C
 
 Nicht übernommen: Sprachdienst, Zugangsdaten, Turn-Kennungen, Mikrofon-Freigabegatter, Keep-Alive-Oszillator, unbegrenzte Kanäle, Diagnose, Anwendungen und Studienartefakte.
 
-Die OpenAL-Aufnahme ist neu. Sie bindet `OpenTK.Audio.OpenAL` 4.9.4 und kopiert die native Bibliothek nicht. Die Warteschlangenmessung betrifft diese Bibliothek. Der Lookback-Ring der Quellanwendung ist nicht übernommen.
+Die OpenAL-Aufnahme ist neu. Sie bindet `OpenTK.Audio.OpenAL` 4.9.4 und kopiert die native Bibliothek nicht. Die Warteschlangenmessung betrifft diese Bibliothek. Der begrenzte PCM-Verlauf mit unabhaengigen Byte-Cursorn und die Messung von Dauer und mittlerer absoluter Amplitude eines PCM16LE-Blocks sind aus demselben Commit abgeleitet. Sprachsegmentierung, Schwellen, TTS, Wakeword und Dialog sind nicht uebernommen.
 
 Die Quellanwendung hat in ihrer eigenen CI historisch .NET 10 verwendet. MicroSharp unterstützt das nicht. Aktuelle Projekte, Beispiele, Tests, Pakete und CI dieser Bibliothek zielen nur auf `net11.0`.

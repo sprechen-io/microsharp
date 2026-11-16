@@ -3,6 +3,7 @@
     <Project Path="src/MicroSharp/MicroSharp.csproj" />
     <Project Path="src/MicroSharp.Browser/MicroSharp.Browser.csproj" />
     <Project Path="src/MicroSharp.Native/MicroSharp.Native.csproj" />
+    <Project Path="src/MicroSharp.Processing/MicroSharp.Processing.csproj" />
   </Folder>
   <Folder Name="/benchmarks/">
     <Project Path="benchmarks/MicroSharp.Benchmarks/MicroSharp.Benchmarks.csproj" />
@@ -14,6 +15,7 @@
     <Project Path="tests/MicroSharp.Tests/MicroSharp.Tests.csproj" />
     <Project Path="tests/MicroSharp.Browser.Tests/MicroSharp.Browser.Tests.csproj" />
     <Project Path="tests/MicroSharp.Native.Tests/MicroSharp.Native.Tests.csproj" />
+    <Project Path="tests/MicroSharp.Processing.Tests/MicroSharp.Processing.Tests.csproj" />
     <Project Path="tests/MicroSharp.ReleaseGate.Tests/MicroSharp.ReleaseGate.Tests.csproj" />
   </Folder>
 </Solution>

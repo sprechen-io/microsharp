@@ -49,7 +49,7 @@ finally
         ["bytesPerChunk"] = 640,
         ["dropOldestCapacityChunks"] = PcmCaptureQueueBenchmarks.DropOldestCapacity,
         ["waitCapacityChunks"] = PcmCaptureQueueBenchmarks.WaitCapacity,
-        ["note"] = "CoreCLR measurements of the shared PCM queue. Browser and WebAssembly capture are not measured here.",
+        ["note"] = "CoreCLR measurements of the shared PCM queue, the PCM history ring, and PCM16LE block analysis. Browser and WebAssembly capture are not measured here.",
     };
     var json = JsonSerializer.Serialize(metadata, new JsonSerializerOptions { WriteIndented = true });
     File.WriteAllText(Path.Combine(artifacts, "runtime-metadata.json"), json + "\n");

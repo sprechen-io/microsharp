@@ -7,3 +7,5 @@ Geprüft und frei waren das Repository `sprechen-io/microsharp` und die Paket-ID
 Eine Marken-, Firmen- oder Domaingrenzprüfung hat nicht stattgefunden. Paketbeschreibungen nennen Mikrofonaufnahme, damit Micro nicht als Mikrocontroller gelesen werden muss.
 
 Es wird kein anderer Name verwendet.
+
+`MicroSharp.Processing` Version `0.1.0` wurde am 2026-11-16 auf NuGet.org geprueft. Die Suche lieferte 0 Treffer. Registration und der Flat-Container dieser Version lieferten 404. Dieselbe Version von `MicroSharp`, `MicroSharp.Browser` und `MicroSharp.Native` war ebenfalls 404. Ein 404 reserviert die Kennung nicht. Ein fremdes Paket wird nicht uebernommen.

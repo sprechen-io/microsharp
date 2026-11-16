@@ -1,16 +1,17 @@
 # Architekturentscheidung: Paket- und Adaptergrenze
 
-Drei Pakete trennen den portablen Vertrag, die Browser-Aufnahme und die Betriebssystem-Aufnahme.
+Vier Pakete trennen den portablen Vertrag, die Browser-Aufnahme, die Betriebssystem-Aufnahme und den begrenzten PCM-Verlauf.
 
 ## Grenze
 
-Drei Pakete, ein Vertrag:
+Vier Pakete, ein Vertrag:
 
 | Paket | Öffnet | Adapter |
 | --- | --- | --- |
 | `MicroSharp` | kein Gerät und kein Browserdokument | nur Vertrag und PCM-Sitzung |
 | `MicroSharp.Browser` | Browserdokument über JavaScript, kein Betriebssystemgerät | `BrowserMicrophoneCapture`, `CapturesOperatingSystemDevice` false, `RequiresBrowserHost` true |
 | `MicroSharp.Native` | ein benanntes OpenAL-Aufnahmegerät, und getrennt davon eine Prozessquelle | `OpenAlMicrophoneCapture` true/false, `VirtualMicrophoneCapture` false/false |
+| `MicroSharp.Processing` | kein Geraet | `PcmHistoryRing`, `Pcm16LeBlockAnalyzer` |
 
 `VirtualMicrophoneCapture` bleibt die deterministische PCM-Pipeline. Sie ist kein Ersatz für die Betriebssystemaufnahme.
 
@@ -24,7 +25,7 @@ Der Gerätename ist Pflicht und darf nicht leer sein. `null` würde in OpenAL da
 
 Der OpenAL-Adapter lehnt `CaptureBackpressure.Wait` ab. Der Aufnahmering läuft weiter, während der Leser wartet. Lebende Aufnahme nutzt `DropOldest`. Der virtuelle Adapter behält `Wait` für Tests ohne Gerät.
 
-Die gemeinsame Warteschlange liegt in `MicroSharp` und bleibt dort. Sie kopiert jeden Block, hält höchstens die gesetzte Kapazität und zählt `DropOldest`. Ein Lookback-Ring mit Lesecursor wäre ein anderes Bauteil. Er ist in diesem Stand kein viertes Paket und übernimmt keine Sprachsegmentierung. Messungen dieser Warteschlange liegen in `benchmarks/MicroSharp.Benchmarks`. Das Projekt ist nicht paketierbar und gehört nicht zum Release.
+Die gemeinsame Warteschlange liegt in `MicroSharp` und bleibt dort. Sie kopiert jeden Block, haelt hoechstens die gesetzte Kapazitaet und zaehlt `DropOldest`. Der begrenzte PCM-Verlauf mit unabhaengigen Byte-Cursorn und die PCM16LE-Messung von Dauer und mittlerer absoluter Amplitude liegen in `MicroSharp.Processing`. Das Paket oeffnet kein Mikrofon und enthaelt keine Sprachschwelle, Segmentierung oder Dialogregel. Messungen der Warteschlange und des Verlaufs liegen in `benchmarks/MicroSharp.Benchmarks`. Das Projekt ist nicht paketierbar und gehoert nicht zum Release. Die Zahlen gelten fuer CoreCLR und sind keine Browser- oder WebAssembly-Messung.
 
 ## Plattformen
 
