@@ -67,11 +67,43 @@ public sealed class BrowserMicrophoneCapture : IMicrophoneCapture
             module,
             "requestAccess",
             cancellationToken,
-            [Preferences()]).ConfigureAwait(false);
+            [Preferences(_options.KeepAudioContextAlive)]).ConfigureAwait(false);
         if (!string.IsNullOrEmpty(result?.ErrorName))
         {
             throw BrowserFailureMapper.ToException(result.ErrorName);
         }
+    }
+
+    /// <summary>
+    /// Oeffnet die Browserquelle, ohne sie zu verbinden.
+    /// Ein vom Browser genannter Fehler bleibt im Ergebnis und wirft hier nicht.
+    /// </summary>
+    public async Task<BrowserPrepareOutcome> PrepareAsync(
+        bool keepAudioContextAlive,
+        CancellationToken cancellationToken = default)
+    {
+        var module = await ModuleAsync(cancellationToken).ConfigureAwait(false);
+        await EnsureHostAsync(module, cancellationToken).ConfigureAwait(false);
+        BrowserAcquireResult? acquired;
+        try
+        {
+            acquired = await module.InvokeAsync<BrowserAcquireResult>(
+                "acquire",
+                cancellationToken,
+                Preferences(keepAudioContextAlive)).ConfigureAwait(false);
+        }
+        catch (JSException)
+        {
+            throw;
+        }
+        if (acquired is null || string.IsNullOrEmpty(acquired.SessionId) || !string.IsNullOrEmpty(acquired.ErrorName))
+        {
+            return new BrowserPrepareOutcome(acquired ?? new BrowserAcquireResult(), null);
+        }
+
+        return new BrowserPrepareOutcome(
+            acquired,
+            new BrowserMicrophoneHold(module, this, acquired.SessionId));
     }
 
     /// <inheritdoc />
@@ -96,63 +128,40 @@ public sealed class BrowserMicrophoneCapture : IMicrophoneCapture
         }
 
         cancellationToken.ThrowIfCancellationRequested();
-        var module = await ModuleAsync(cancellationToken).ConfigureAwait(false);
-        await EnsureHostAsync(module, cancellationToken).ConfigureAwait(false);
-        var acquired = await InvokeRequiredAsync<BrowserAcquireResult>(
-            module,
-            "acquire",
-            cancellationToken,
-            [Preferences()]).ConfigureAwait(false);
-        if (acquired is null || string.IsNullOrEmpty(acquired.SessionId) || !string.IsNullOrEmpty(acquired.ErrorName))
+        var prepared = await PrepareAsync(_options.KeepAudioContextAlive, cancellationToken).ConfigureAwait(false);
+        if (prepared.Hold is null)
         {
-            throw BrowserFailureMapper.ToException(acquired?.ErrorName);
+            throw BrowserFailureMapper.ToException(prepared.Result.ErrorName);
         }
 
-        var sessionId = acquired.SessionId;
-        BrowserMicrophoneSession? session = null;
         try
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            session = new BrowserMicrophoneSession(
-                request.Format,
-                request.QueueCapacityChunks,
-                token => InvokeReleaseAsync(module, "stop", sessionId, token),
-                () => ClearActive(session));
-            var reference = DotNetObjectReference.Create(session);
-            session.AttachReference(reference);
-            var started = await module.InvokeAsync<BrowserStartResult>(
-                "start",
-                cancellationToken,
-                [sessionId, reference, FormatPayload(request.Format)]).ConfigureAwait(false);
-            EnsureStartedFormat(request.Format, started);
-            lock (_gate)
-            {
-                _active = session;
-            }
-
-            return session;
+            return await prepared.Hold.StartAsync(request, releaseDeviceOnStop: true, cancellationToken)
+                .ConfigureAwait(false);
         }
-        catch (Exception exception)
+        catch
         {
-            if (session is not null)
-            {
-                await session.DisposeAsync().ConfigureAwait(false);
-            }
-            else
-            {
-                await InvokeReleaseAsync(module, "release", sessionId, CancellationToken.None).ConfigureAwait(false);
-            }
-
-            if (exception is OperationCanceledException)
-            {
-                throw;
-            }
-
+            await prepared.Hold.DisposeAsync().ConfigureAwait(false);
             throw;
         }
     }
 
-    private void ClearActive(BrowserMicrophoneSession? session)
+    internal bool TryReserve(BrowserMicrophoneSession session)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        lock (_gate)
+        {
+            if (_active is { State: MicrophoneSessionState.Running } && !ReferenceEquals(_active, session))
+            {
+                return false;
+            }
+
+            _active = session;
+            return true;
+        }
+    }
+
+    internal void ClearActive(BrowserMicrophoneSession? session)
     {
         if (session is null)
         {
@@ -205,7 +214,7 @@ public sealed class BrowserMicrophoneCapture : IMicrophoneCapture
         }
     }
 
-    private static void EnsureStartedFormat(PcmFormat format, BrowserStartResult? started)
+    internal static void EnsureStartedFormat(PcmFormat format, BrowserStartResult? started)
     {
         var milliseconds = (int)format.ChunkDuration.TotalMilliseconds;
         if (started is null
@@ -213,21 +222,25 @@ public sealed class BrowserMicrophoneCapture : IMicrophoneCapture
             || started.Channels != 1
             || started.ChunkMilliseconds != milliseconds)
         {
+            var reported = started is null || started.SampleRateHz <= 0
+                ? "audio/pcm"
+                : $"audio/pcm;rate={started.SampleRateHz}";
             throw new MicrophoneException(
                 MicrophoneErrorCode.Unavailable,
-                "The browser confirmed a different PCM format.");
+                $"The browser confirmed a different PCM format. reported={reported}");
         }
     }
 
-    private Dictionary<string, object?> Preferences()
+    private Dictionary<string, object?> Preferences(bool keepAudioContextAlive)
         => new()
         {
             ["echoCancellation"] = _options.EchoCancellation,
             ["noiseSuppression"] = _options.NoiseSuppression,
             ["autoGainControl"] = _options.AutoGainControl,
+            ["keepAudioContextAlive"] = keepAudioContextAlive,
         };
 
-    private static Dictionary<string, object?> FormatPayload(PcmFormat format)
+    internal static Dictionary<string, object?> FormatPayload(PcmFormat format)
         => new()
         {
             ["targetSampleRate"] = format.SampleRateHz,

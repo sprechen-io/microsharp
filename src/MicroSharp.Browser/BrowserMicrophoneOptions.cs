@@ -19,4 +19,10 @@ public sealed class BrowserMicrophoneOptions
 
     /// <summary>Wunsch an den Browser. <see langword="null"/> laesst die Browser-Vorgabe.</summary>
     public bool? AutoGainControl { get; init; } = true;
+
+    /// <summary>
+    /// Haelt den Audiokontext mit einem unhoerbaren Signal offen.
+    /// Der Vorgabewert ist aus, damit eine Aufnahme ohne diesen Wunsch keinen zusaetzlichen Klang erzeugt.
+    /// </summary>
+    public bool KeepAudioContextAlive { get; init; }
 }

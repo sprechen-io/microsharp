@@ -98,6 +98,21 @@ public sealed class BrowserMicrophoneSession : IMicrophoneSession
         await _session.StopAsync(cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>Verwirft die Sitzung, ohne den Browser aufzurufen. Der Aufrufer gibt die Quelle selbst frei.</summary>
+    internal async ValueTask AbandonWithoutBrowserCallAsync()
+    {
+        if (Interlocked.Exchange(ref _disposeState, 1) != 0)
+        {
+            return;
+        }
+
+        _reference?.Dispose();
+        _reference = null;
+        _session.Complete();
+        await _session.DisposeAsync().ConfigureAwait(false);
+        _disposed();
+    }
+
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {

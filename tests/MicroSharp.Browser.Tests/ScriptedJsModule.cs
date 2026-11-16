@@ -12,7 +12,33 @@ internal sealed class ScriptedJsModule : IJSRuntime, IJSObjectReference
 
     public string? AcquireError { get; set; }
 
+    public IReadOnlyDictionary<string, object?>? LastAcquirePreferences { get; private set; }
+
+    public List<bool> SourceEnabled { get; } = [];
+
+    public bool Live { get; set; } = true;
+
+    public BrowserTrackProcessing Track { get; } = new()
+    {
+        EchoCancellation = true,
+        NoiseSuppression = false,
+    };
+
     public bool DelayStartUntilCancelled { get; set; }
+
+    public bool PauseStart { get; set; }
+
+    public TaskCompletionSource<bool> StartGate { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    public bool PauseAcquire { get; set; }
+
+    public TaskCompletionSource<bool> AcquireGate { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    public int AcquireCount { get; private set; }
+
+    public int ReleaseFailuresRemaining { get; set; }
+
+    public bool ReleaseDisconnects { get; set; }
 
     public int? StartSampleRateHz { get; set; }
 
@@ -27,6 +53,17 @@ internal sealed class ScriptedJsModule : IJSRuntime, IJSObjectReference
     {
         Calls.Add(identifier);
         cancellationToken.ThrowIfCancellationRequested();
+        if (identifier == "release" && ReleaseDisconnects)
+        {
+            throw new JSDisconnectedException("The browser circuit disconnected.");
+        }
+
+        if (identifier == "release" && ReleaseFailuresRemaining > 0)
+        {
+            ReleaseFailuresRemaining--;
+            throw new JSException("The browser rejected release.");
+        }
+
         object? result = identifier switch
         {
             "import" => this,
@@ -38,11 +75,12 @@ internal sealed class ScriptedJsModule : IJSRuntime, IJSObjectReference
             },
             "permission" => new BrowserPermissionResult { State = PermissionState },
             "requestAccess" => new BrowserAcquireResult { ErrorName = AcquireError },
-            "acquire" => string.IsNullOrEmpty(AcquireError)
-                ? new BrowserAcquireResult { SessionId = "session-1" }
-                : new BrowserAcquireResult { ErrorName = AcquireError },
+            "acquire" => await AcquireAsync(args).ConfigureAwait(false),
+            "setSourceEnabled" => RecordSourceEnabled(args),
+            "isLive" => Live,
+            "trackProcessing" => Track,
             "start" => await StartAsync(args, cancellationToken).ConfigureAwait(false),
-            "stop" or "release" => null,
+            "disconnect" or "stop" or "release" => null,
             _ => throw new InvalidOperationException($"Unexpected JavaScript call {identifier}."),
         };
 
@@ -51,6 +89,34 @@ internal sealed class ScriptedJsModule : IJSRuntime, IJSObjectReference
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
+    private async Task<BrowserAcquireResult> AcquireAsync(object?[]? args)
+    {
+        if (args is { Length: > 0 } && args[0] is IReadOnlyDictionary<string, object?> preferences)
+        {
+            LastAcquirePreferences = preferences;
+        }
+
+        AcquireCount++;
+        if (PauseAcquire)
+        {
+            await AcquireGate.Task.ConfigureAwait(false);
+        }
+
+        return string.IsNullOrEmpty(AcquireError)
+            ? new BrowserAcquireResult { SessionId = "session-1" }
+            : new BrowserAcquireResult { ErrorName = AcquireError };
+    }
+
+    private object? RecordSourceEnabled(object?[]? args)
+    {
+        if (args is { Length: > 1 } && args[1] is bool enabled)
+        {
+            SourceEnabled.Add(enabled);
+        }
+
+        return null;
+    }
+
     private async Task<BrowserStartResult> StartAsync(object?[]? args, CancellationToken cancellationToken)
     {
         if (args is { Length: > 1 })
@@ -58,10 +124,14 @@ internal sealed class ScriptedJsModule : IJSRuntime, IJSObjectReference
             SessionReference = args[1] as DotNetObjectReference<BrowserMicrophoneSession>;
         }
 
+        StartEntered.TrySetResult();
         if (DelayStartUntilCancelled)
         {
-            StartEntered.TrySetResult();
             await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken).ConfigureAwait(false);
+        }
+        else if (PauseStart)
+        {
+            await StartGate.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
         }
 
         var sampleRate = StartSampleRateHz ?? ReadInt(args, "targetSampleRate", 16_000);

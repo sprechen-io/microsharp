@@ -93,6 +93,28 @@ const releaseSession = async (session) => {
 
     session.workletNode = null;
     try {
+        if (session.keepAliveOscillator) {
+            session.keepAliveOscillator.stop();
+        }
+    } catch (error) {
+        failures.push(error);
+    }
+
+    try {
+        session.keepAliveOscillator?.disconnect();
+    } catch (error) {
+        failures.push(error);
+    }
+
+    session.keepAliveOscillator = null;
+    try {
+        session.keepAliveGain?.disconnect();
+    } catch (error) {
+        failures.push(error);
+    }
+
+    session.keepAliveGain = null;
+    try {
         stopTracks(session.stream);
     } catch (error) {
         failures.push(error);
@@ -171,9 +193,24 @@ export async function acquire(preferences) {
             workletNode: null,
             dotNetRef: null,
             targetSampleRate: 0,
+            sourceEnabled: true,
+            keepAliveGain: null,
+            keepAliveOscillator: null,
         };
         if (audioContext.state === "suspended") {
             await audioContext.resume();
+        }
+
+        if (preferences && preferences.keepAudioContextAlive === true) {
+            const gain = audioContext.createGain();
+            gain.gain.value = 0;
+            const oscillator = audioContext.createOscillator();
+            oscillator.frequency.value = 440;
+            oscillator.connect(gain);
+            gain.connect(audioContext.destination);
+            oscillator.start();
+            session.keepAliveGain = gain;
+            session.keepAliveOscillator = oscillator;
         }
 
         const workletUrl = new URL("./pcm-recorder-processor.js", import.meta.url);
@@ -233,11 +270,22 @@ export async function start(sessionId, dotNetRef, format) {
         throw error;
     }
 
+    if (session.workletNode || session.sourceNode) {
+        const error = new Error("MIC_SESSION_ALREADY_STARTED");
+        error.name = "InvalidStateError";
+        throw error;
+    }
+
     session.dotNetRef = dotNetRef;
     session.targetSampleRate = targetSampleRate;
     const context = session.audioContext;
     if (context.state === "suspended") {
         await context.resume();
+    }
+
+    const sourceEnabled = session.sourceEnabled !== false;
+    for (const track of session.stream.getAudioTracks()) {
+        track.enabled = sourceEnabled;
     }
 
     session.sourceNode = context.createMediaStreamSource(session.stream);
@@ -294,6 +342,81 @@ export async function start(sessionId, dotNetRef, format) {
         channels: 1,
         chunkMilliseconds,
     };
+}
+
+export function setSourceEnabled(sessionId, enabled) {
+    const session = sessions.get(sessionId);
+    if (!session || !session.stream) {
+        return;
+    }
+
+    session.sourceEnabled = enabled === true;
+    for (const track of session.stream.getAudioTracks()) {
+        track.enabled = session.sourceEnabled;
+    }
+}
+
+export function isLive(sessionId) {
+    const session = sessions.get(sessionId);
+    return !!session
+        && !!session.audioContext
+        && session.audioContext.state === "running"
+        && session.stream.getAudioTracks().some((track) => track.readyState === "live");
+}
+
+const asBool = (value) => (typeof value === "boolean" ? value : null);
+
+export function trackProcessing(sessionId) {
+    const unknown = {
+        echoCancellation: null,
+        noiseSuppression: null,
+        autoGainControl: null,
+    };
+    const track = sessions.get(sessionId)?.stream?.getAudioTracks?.()[0];
+    if (!track || typeof track.getSettings !== "function") {
+        return unknown;
+    }
+
+    try {
+        const settings = track.getSettings();
+        return {
+            echoCancellation: asBool(settings.echoCancellation),
+            noiseSuppression: asBool(settings.noiseSuppression),
+            autoGainControl: asBool(settings.autoGainControl),
+        };
+    } catch {
+        return unknown;
+    }
+}
+
+export async function disconnect(sessionId) {
+    const session = sessions.get(sessionId);
+    if (!session) {
+        return;
+    }
+
+    const callback = session.dotNetRef;
+    session.dotNetRef = null;
+    try {
+        session.sourceNode?.disconnect();
+    } catch (error) {
+        session.dotNetRef = callback;
+        throw error;
+    }
+
+    session.sourceNode = null;
+    try {
+        if (session.workletNode) {
+            session.workletNode.port.onmessage = null;
+            session.workletNode.disconnect();
+        }
+    } catch (error) {
+        session.dotNetRef = callback;
+        throw error;
+    }
+
+    session.workletNode = null;
+    await invokeCallback(callback, "OnStopped");
 }
 
 export async function stop(sessionId) {
