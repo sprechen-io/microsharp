@@ -5,7 +5,7 @@ using System.Text.Json.Nodes;
 namespace MicroSharp.ReleaseGate;
 
 /// <summary>
-/// Vergleicht die gerade gepackten Nutzdaten mit einem frischen privaten NuGet-Cache.
+/// Compares the payloads just packed with a fresh private NuGet cache.
 /// </summary>
 public static class PackedRestoreChecker
 {

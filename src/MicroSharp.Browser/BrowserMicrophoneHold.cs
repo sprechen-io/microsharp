@@ -3,8 +3,8 @@ using Microsoft.JSInterop;
 namespace MicroSharp.Browser;
 
 /// <summary>
-/// Eine geoeffnete Browserquelle. Die Aufnahme kann starten, enden und erneut starten,
-/// ohne die Quelle freizugeben. <see cref="DisposeAsync"/> gibt sie frei.
+/// An opened browser source. Capture can start, end and start again
+/// without releasing the source. <see cref="DisposeAsync"/> releases it.
 /// </summary>
 public sealed class BrowserMicrophoneHold : IAsyncDisposable
 {
@@ -27,12 +27,12 @@ public sealed class BrowserMicrophoneHold : IAsyncDisposable
         SessionId = sessionId ?? throw new ArgumentNullException(nameof(sessionId));
     }
 
-    /// <summary>Kennung der Browserquelle.</summary>
+    /// <summary>Id of the browser source.</summary>
     public string SessionId { get; }
 
     /// <summary>
-    /// Schaltet die Quellspur ein oder aus. Der Wert gilt vor dem Verbinden, waehrend der Aufnahme
-    /// und waehrend einer noch nicht erfolgreichen Freigabe.
+    /// Turns the source track on or off. The value applies before connecting, during capture
+    /// and during a release that has not succeeded yet.
     /// </summary>
     public async ValueTask SetSourceEnabledAsync(bool enabled, CancellationToken cancellationToken = default)
     {
@@ -52,7 +52,7 @@ public sealed class BrowserMicrophoneHold : IAsyncDisposable
         }
     }
 
-    /// <summary>Wahr, wenn Audiokontext und Spur der Quelle noch laufen.</summary>
+    /// <summary>True when the source audio context and track are still running.</summary>
     public async Task<bool> IsLiveAsync(CancellationToken cancellationToken = default)
     {
         if (Volatile.Read(ref _released) != 0)
@@ -70,7 +70,7 @@ public sealed class BrowserMicrophoneHold : IAsyncDisposable
         }
     }
 
-    /// <summary>Liest die angewendete Verarbeitung. Eine fehlende Quelle liefert leere Werte.</summary>
+    /// <summary>Reads the processing that was applied. A missing source returns empty values.</summary>
     public async Task<BrowserTrackProcessing> ReadTrackProcessingAsync(CancellationToken cancellationToken = default)
     {
         if (Volatile.Read(ref _released) != 0)
@@ -93,8 +93,8 @@ public sealed class BrowserMicrophoneHold : IAsyncDisposable
     }
 
     /// <summary>
-    /// Loest den Aufnahmegraphen, ohne die Quelle freizugeben.
-    /// Ohne laufende Aufnahme bleibt der Aufruf eine Trennung der Browserquelle.
+    /// Disconnects the capture graph without releasing the source.
+    /// Without a running capture the call only disconnects the browser source.
     /// </summary>
     public async ValueTask DisconnectAsync(CancellationToken cancellationToken = default)
     {
@@ -126,7 +126,7 @@ public sealed class BrowserMicrophoneHold : IAsyncDisposable
         }
     }
 
-    /// <summary>Verbindet die Aufnahme. Die Quelle bleibt nach <see cref="IMicrophoneSession.StopAsync"/> erhalten.</summary>
+    /// <summary>Connects capture. The source remains after <see cref="IMicrophoneSession.StopAsync"/>.</summary>
     public Task<IMicrophoneSession> StartAsync(
         MicrophoneCaptureRequest request,
         CancellationToken cancellationToken = default)
@@ -147,8 +147,8 @@ public sealed class BrowserMicrophoneHold : IAsyncDisposable
         }
 
         cancellationToken.ThrowIfCancellationRequested();
-        // Der Browseraufruf bleibt ausserhalb der Besitzsperre, damit Freigabe und Quellenschalter
-        // ihn nicht abwarten. Nur die erfolgreiche Freigabe verhindert danach die Veroeffentlichung.
+        // The browser call stays outside the ownership lock so release and the source switch
+        // do not wait for it. Only a successful release prevents publication after that.
         BrowserMicrophoneSession? session = null;
         DotNetObjectReference<BrowserMicrophoneSession>? reference = null;
         var generation = 0;
@@ -185,7 +185,7 @@ public sealed class BrowserMicrophoneHold : IAsyncDisposable
                 _ownership.Release();
             }
 
-            // Ein noch laufendes Trennen der vorigen Aufnahme muss enden, bevor der neue Graph entsteht.
+            // A disconnect of the previous capture that is still running must finish before the new graph is created.
             await previousGraphStop.WaitAsync(cancellationToken).ConfigureAwait(false);
             var started = await _module.InvokeAsync<BrowserStartResult>(
                 "start",
@@ -244,9 +244,9 @@ public sealed class BrowserMicrophoneHold : IAsyncDisposable
     }
 
     /// <summary>
-    /// Gibt die Browserquelle frei. Ein erfolgreicher oder bereits getrennter Aufruf ist abgeschlossen.
-    /// Schlaegt die Freigabe im noch verbundenen Browser fehl, bleibt ein erneuter Aufruf wirksam.
-    /// Der Browser wird auch dann gerufen, wenn ein Start derselben Quelle noch nicht zurueck ist.
+    /// Releases the browser source. A call that already succeeded or was already disconnected is complete.
+    /// If release fails while the browser is still connected, a later call still takes effect.
+    /// The browser is called even when a start of the same source has not returned yet.
     /// </summary>
     public async ValueTask DisposeAsync()
     {
@@ -328,7 +328,7 @@ public sealed class BrowserMicrophoneHold : IAsyncDisposable
         await _ownership.WaitAsync(CancellationToken.None).ConfigureAwait(false);
         try
         {
-            // Nur die zuletzt veroeffentlichte Aufnahme trennt den gemeinsamen Browsergraphen.
+            // Only the capture published last disconnects the shared browser graph.
             if (generation != _graphGeneration)
             {
                 return;

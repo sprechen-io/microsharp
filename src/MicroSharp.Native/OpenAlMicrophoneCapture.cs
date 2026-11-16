@@ -1,11 +1,11 @@
 namespace MicroSharp.Native;
 
 /// <summary>
-/// Oeffnet ein benanntes OpenAL-1.1-Aufnahmegeraet und liefert PCM in den MicroSharp-Vertrag.
+/// Opens a named OpenAL 1.1 capture device and delivers PCM into the MicroSharp contract.
 /// </summary>
 public sealed class OpenAlMicrophoneCapture : IMicrophoneCapture
 {
-    /// <summary>Stabiler Adaptername.</summary>
+    /// <summary>Stable adapter name.</summary>
     public const string AdapterId = "openal";
 
     private readonly OpenAlMicrophoneOptions _options;
@@ -13,7 +13,7 @@ public sealed class OpenAlMicrophoneCapture : IMicrophoneCapture
     private readonly object _gate = new();
     private OpenAlMicrophoneSession? _active;
 
-    /// <summary>Erstellt den Adapter fuer ein konkretes Aufnahmegeraet.</summary>
+    /// <summary>Creates the adapter for one concrete capture device.</summary>
     public OpenAlMicrophoneCapture(OpenAlMicrophoneOptions options)
         : this(options, new AlcCaptureDeviceFactory())
     {
@@ -34,7 +34,7 @@ public sealed class OpenAlMicrophoneCapture : IMicrophoneCapture
     /// <inheritdoc />
     public bool RequiresBrowserHost => false;
 
-    /// <summary>Liest die OpenAL-Aufnahmeliste, ohne ein Geraet zu oeffnen.</summary>
+    /// <summary>Reads the OpenAL capture list without opening a device.</summary>
     public IReadOnlyList<string> ListCaptureDevices() => _devices.ListCaptureDevices();
 
     /// <inheritdoc />

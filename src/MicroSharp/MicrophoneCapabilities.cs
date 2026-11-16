@@ -1,12 +1,12 @@
 namespace MicroSharp;
 
 /// <summary>
-/// Was ein Adapter liefern kann, ohne dafuer ein Geraet zu oeffnen.
+/// What an adapter can deliver without opening a device for that query.
 /// </summary>
-/// <param name="AdapterName">Stabiler Name des Adapters.</param>
-/// <param name="CapturesOperatingSystemDevice">Wahr nur, wenn der Adapter ein Betriebssystem-Geraet oeffnet.</param>
-/// <param name="RequiresBrowserHost">Wahr, wenn die Aufnahme Browser-APIs im Dokument des Benutzers braucht.</param>
-/// <param name="SampleRatesHz">Unterstuetzte Abtastraten.</param>
+/// <param name="AdapterName">Stable name of the adapter.</param>
+/// <param name="CapturesOperatingSystemDevice">True only when the adapter opens an operating-system device.</param>
+/// <param name="RequiresBrowserHost">True when capture needs browser APIs in the user's document.</param>
+/// <param name="SampleRatesHz">Supported sample rates.</param>
 public sealed record MicrophoneCapabilities(
     string AdapterName,
     bool CapturesOperatingSystemDevice,

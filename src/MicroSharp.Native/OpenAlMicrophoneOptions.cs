@@ -1,11 +1,11 @@
 namespace MicroSharp.Native;
 
 /// <summary>
-/// Benennt das OpenAL-Aufnahmegeraet. Ein leerer Name wird abgelehnt, damit nicht das Standardgeraet oeffnet.
+/// Names the OpenAL capture device. An empty name is rejected so the default device is not opened.
 /// </summary>
 public sealed class OpenAlMicrophoneOptions
 {
-    /// <summary>Erstellt die Optionen fuer genau einen Geraetenamen.</summary>
+    /// <summary>Creates the options for exactly one device name.</summary>
     public OpenAlMicrophoneOptions(string deviceName)
     {
         if (string.IsNullOrWhiteSpace(deviceName))
@@ -18,9 +18,9 @@ public sealed class OpenAlMicrophoneOptions
         DeviceName = deviceName;
     }
 
-    /// <summary>Name, der an <c>alcCaptureOpenDevice</c> geht.</summary>
+    /// <summary>Name passed to <c>alcCaptureOpenDevice</c>.</summary>
     public string DeviceName { get; }
 
-    /// <summary>Uhr fuer die Lese-Pause. Ohne Angabe wird <see cref="TimeProvider.System"/> verwendet.</summary>
+    /// <summary>Clock for the read pause. When omitted, <see cref="TimeProvider.System"/> is used.</summary>
     public TimeProvider? TimeProvider { get; init; }
 }

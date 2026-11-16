@@ -1,7 +1,7 @@
 namespace MicroSharp.Native;
 
 /// <summary>
-/// Erzeugt einen Sinuston als vorzeichenbehaftete 16-Bit-Abtastwerte.
+/// Generates a sine tone as signed 16-bit samples.
 /// </summary>
 public sealed class PcmToneSource : IPcmSource
 {
@@ -9,7 +9,7 @@ public sealed class PcmToneSource : IPcmSource
     private readonly double _amplitude;
     private double _phase;
 
-    /// <summary>Erstellt eine nicht endende Tonquelle im angegebenen Format.</summary>
+    /// <summary>Creates a non-ending tone source in the given format.</summary>
     public PcmToneSource(double frequencyHz, PcmFormat format, double amplitude = 0.5)
     {
         if (frequencyHz <= 0)

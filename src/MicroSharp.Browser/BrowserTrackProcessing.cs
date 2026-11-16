@@ -3,23 +3,23 @@ using System.Text.Json.Serialization;
 namespace MicroSharp.Browser;
 
 /// <summary>
-/// Vom Browser gemeldete Verarbeitung der Mikrofonspur.
-/// Ein nicht lesbarer Wert bleibt <see langword="null"/>.
+/// Microphone-track processing reported by the browser.
+/// A value that cannot be read stays <see langword="null"/>.
 /// </summary>
 public sealed class BrowserTrackProcessing
 {
-    /// <summary>Leere Meldung, wenn keine Spur gelesen werden kann.</summary>
+    /// <summary>Empty report when no track can be read.</summary>
     public static BrowserTrackProcessing Unknown { get; } = new();
 
-    /// <summary>Angewendete Echounterdrueckung.</summary>
+    /// <summary>Echo cancellation that was applied.</summary>
     [JsonPropertyName("echoCancellation")]
     public bool? EchoCancellation { get; set; }
 
-    /// <summary>Angewendete Rauschunterdrueckung.</summary>
+    /// <summary>Noise suppression that was applied.</summary>
     [JsonPropertyName("noiseSuppression")]
     public bool? NoiseSuppression { get; set; }
 
-    /// <summary>Angewendete automatische Verstaerkung.</summary>
+    /// <summary>Automatic gain control that was applied.</summary>
     [JsonPropertyName("autoGainControl")]
     public bool? AutoGainControl { get; set; }
 }

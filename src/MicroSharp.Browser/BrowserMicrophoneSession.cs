@@ -3,7 +3,7 @@ using Microsoft.JSInterop;
 namespace MicroSharp.Browser;
 
 /// <summary>
-/// Nimmt PCM-Bloecke aus dem Browser-AudioWorklet entgegen.
+/// Accepts PCM chunks from the browser audio worklet.
 /// </summary>
 public sealed class BrowserMicrophoneSession : IMicrophoneSession
 {
@@ -24,13 +24,13 @@ public sealed class BrowserMicrophoneSession : IMicrophoneSession
         _disposed = disposed ?? throw new ArgumentNullException(nameof(disposed));
     }
 
-    /// <summary>Das vereinbarte Format.</summary>
+    /// <summary>The agreed format.</summary>
     public PcmFormat Format => _session.Format;
 
-    /// <summary>Der Lebenszyklus.</summary>
+    /// <summary>The lifecycle.</summary>
     public MicrophoneSessionState State => _session.State;
 
-    /// <summary>Verworfene Bloecke.</summary>
+    /// <summary>Discarded chunks.</summary>
     public long DroppedChunkCount => _session.DroppedChunkCount;
 
     internal void AttachReference(DotNetObjectReference<BrowserMicrophoneSession> reference)
@@ -39,7 +39,7 @@ public sealed class BrowserMicrophoneSession : IMicrophoneSession
         _reference = reference;
     }
 
-    /// <summary>Wird vom Browser fuer jeden PCM-Block aufgerufen.</summary>
+    /// <summary>Called by the browser for each PCM chunk.</summary>
     [JSInvokable]
     public void OnPcmChunk(byte[]? bytes)
     {
@@ -62,7 +62,7 @@ public sealed class BrowserMicrophoneSession : IMicrophoneSession
         }
     }
 
-    /// <summary>Wird vom Browser bei einem Aufnahmefehler aufgerufen.</summary>
+    /// <summary>Called by the browser when capture fails.</summary>
     [JSInvokable]
     public void OnCaptureFault(string? message)
     {
@@ -71,7 +71,7 @@ public sealed class BrowserMicrophoneSession : IMicrophoneSession
             string.IsNullOrWhiteSpace(message) ? "Browser microphone capture failed." : message));
     }
 
-    /// <summary>Wird vom Browser nach dem Freigeben der Sitzung aufgerufen.</summary>
+    /// <summary>Called by the browser after the session is released.</summary>
     [JSInvokable]
     public void OnStopped()
     {
@@ -98,7 +98,7 @@ public sealed class BrowserMicrophoneSession : IMicrophoneSession
         await _session.StopAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    /// <summary>Verwirft die Sitzung, ohne den Browser aufzurufen. Der Aufrufer gibt die Quelle selbst frei.</summary>
+    /// <summary>Discards the session without calling the browser. The caller releases the source.</summary>
     internal async ValueTask AbandonWithoutBrowserCallAsync()
     {
         if (Interlocked.Exchange(ref _disposeState, 1) != 0)

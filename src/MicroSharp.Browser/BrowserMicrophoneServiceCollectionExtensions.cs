@@ -4,13 +4,13 @@ using Microsoft.JSInterop;
 namespace MicroSharp.Browser;
 
 /// <summary>
-/// Optionale Registrierung. Aufrufer koennen <see cref="BrowserMicrophoneCapture"/> auch selbst erzeugen.
+/// Optional registration. Callers may also construct <see cref="BrowserMicrophoneCapture"/> themselves.
 /// </summary>
 public static class BrowserMicrophoneServiceCollectionExtensions
 {
     /// <summary>
-    /// Registriert <see cref="BrowserMicrophoneCapture"/> als scoped <see cref="IMicrophoneCapture"/>.
-    /// Der Host muss <see cref="IJSRuntime"/> bereits registriert haben, wie Blazor das tut.
+    /// Registers <see cref="BrowserMicrophoneCapture"/> as a scoped <see cref="IMicrophoneCapture"/>.
+    /// The host must already have registered <see cref="IJSRuntime"/>, as Blazor does.
     /// </summary>
     public static IServiceCollection AddMicroSharpBrowser(
         this IServiceCollection services,

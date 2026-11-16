@@ -1,17 +1,17 @@
 namespace MicroSharp.Native;
 
 /// <summary>
-/// Liefert vollstaendige PCM-Bloecke fuer den virtuellen Aufnehmer.
-/// Ein unvollstaendiger letzter Block wird nicht geliefert.
+/// Supplies complete PCM chunks for the virtual capturer.
+/// An incomplete final chunk is not supplied.
 /// </summary>
 public interface IPcmSource
 {
-    /// <summary>Format, in dem <see cref="TryReadChunk"/> schreibt.</summary>
+    /// <summary>Format in which <see cref="TryReadChunk"/> writes.</summary>
     PcmFormat Format { get; }
 
     /// <summary>
-    /// Fuellt <paramref name="destination"/> mit dem naechsten Block.
-    /// <see langword="false"/> bedeutet, dass die Quelle beendet ist.
+    /// Fills <paramref name="destination"/> with the next chunk.
+    /// <see langword="false"/> means the source has ended.
     /// </summary>
     bool TryReadChunk(Span<short> destination);
 }

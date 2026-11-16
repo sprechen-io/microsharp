@@ -1,18 +1,18 @@
 namespace MicroSharp.Native;
 
 /// <summary>
-/// Liefert PCM aus einer Quelle im Prozess. Dieser Adapter oeffnet kein Mikrofon des Betriebssystems.
+/// Delivers PCM from an in-process source. This adapter does not open an operating-system microphone.
 /// </summary>
 public sealed class VirtualMicrophoneCapture : IMicrophoneCapture
 {
-    /// <summary>Stabiler Adaptername.</summary>
+    /// <summary>Stable adapter name.</summary>
     public const string AdapterId = "virtual-pcm";
 
     private readonly VirtualMicrophoneOptions _options;
     private readonly object _gate = new();
     private VirtualMicrophoneSession? _active;
 
-    /// <summary>Erstellt den Adapter fuer eine virtuelle PCM-Quelle.</summary>
+    /// <summary>Creates the adapter for a virtual PCM source.</summary>
     public VirtualMicrophoneCapture(VirtualMicrophoneOptions options)
     {
         _options = options ?? throw new ArgumentNullException(nameof(options));

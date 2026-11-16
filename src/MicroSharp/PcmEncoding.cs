@@ -3,11 +3,11 @@ using System.Buffers.Binary;
 namespace MicroSharp;
 
 /// <summary>
-/// Wandelt vorzeichenbehaftete 16-Bit-Abtastwerte in little-endian-Bytes und zurueck.
+/// Converts signed 16-bit samples to little-endian bytes and back.
 /// </summary>
 public static class PcmEncoding
 {
-    /// <summary>Schreibt die Abtastwerte als little-endian-Bytes.</summary>
+    /// <summary>Writes the samples as little-endian bytes.</summary>
     public static byte[] FromSamples(ReadOnlySpan<short> samples)
     {
         var bytes = new byte[checked(samples.Length * sizeof(short))];
@@ -15,7 +15,7 @@ public static class PcmEncoding
         return bytes;
     }
 
-    /// <summary>Schreibt die Abtastwerte in den Zielpuffer.</summary>
+    /// <summary>Writes the samples into the destination buffer.</summary>
     public static void CopySamples(ReadOnlySpan<short> samples, Span<byte> destination)
     {
         if (destination.Length < samples.Length * sizeof(short))
@@ -29,7 +29,7 @@ public static class PcmEncoding
         }
     }
 
-    /// <summary>Liest little-endian-Bytes als Abtastwerte.</summary>
+    /// <summary>Reads little-endian bytes as samples.</summary>
     public static short[] ToSamples(ReadOnlySpan<byte> payload)
     {
         if (payload.Length % sizeof(short) != 0)

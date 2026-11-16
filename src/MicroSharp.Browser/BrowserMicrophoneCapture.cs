@@ -3,12 +3,12 @@ using Microsoft.JSInterop;
 namespace MicroSharp.Browser;
 
 /// <summary>
-/// Steuert die Mikrofonaufnahme im Browser ueber das mitgelieferte JavaScript-Modul.
-/// Auf einem gewoehnlichen Prozess ohne Browserdokument nimmt dieser Adapter nicht auf.
+/// Controls microphone capture in the browser through the included JavaScript module.
+/// On an ordinary process without a browser document this adapter does not capture.
 /// </summary>
 public sealed class BrowserMicrophoneCapture : IMicrophoneCapture
 {
-    /// <summary>Stabiler Adaptername.</summary>
+    /// <summary>Stable adapter name.</summary>
     public const string AdapterId = "browser";
 
     private readonly IJSRuntime _jsRuntime;
@@ -17,7 +17,7 @@ public sealed class BrowserMicrophoneCapture : IMicrophoneCapture
     private IJSObjectReference? _module;
     private BrowserMicrophoneSession? _active;
 
-    /// <summary>Erstellt den Adapter fuer eine JS-Laufzeit.</summary>
+    /// <summary>Creates the adapter for a JS runtime.</summary>
     public BrowserMicrophoneCapture(IJSRuntime jsRuntime, BrowserMicrophoneOptions? options = null)
     {
         _jsRuntime = jsRuntime ?? throw new ArgumentNullException(nameof(jsRuntime));
@@ -75,8 +75,8 @@ public sealed class BrowserMicrophoneCapture : IMicrophoneCapture
     }
 
     /// <summary>
-    /// Oeffnet die Browserquelle, ohne sie zu verbinden.
-    /// Ein vom Browser genannter Fehler bleibt im Ergebnis und wirft hier nicht.
+    /// Opens the browser source without connecting it.
+    /// An error named by the browser stays in the result and is not thrown here.
     /// </summary>
     public async Task<BrowserPrepareOutcome> PrepareAsync(
         bool keepAudioContextAlive,
@@ -107,8 +107,8 @@ public sealed class BrowserMicrophoneCapture : IMicrophoneCapture
     }
 
     /// <summary>
-    /// Gibt eine Browserkennung frei, auch wenn daraus keine gehaltene Quelle wurde.
-    /// Ein Fehler im noch verbundenen Browser bleibt sichtbar.
+    /// Releases a browser id even when it never became a held source.
+    /// An error in a browser that is still connected stays visible.
     /// </summary>
     public async ValueTask ReleaseBrowserSessionAsync(string sessionId, CancellationToken cancellationToken = default)
     {

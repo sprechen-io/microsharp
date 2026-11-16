@@ -4,7 +4,7 @@ using System.Text.Json;
 namespace MicroSharp.ReleaseGate;
 
 /// <summary>
-/// Kommandozeile der Release-Pruefung. Sie veroeffentlicht keine Pakete.
+/// Command line of the release check. It does not publish packages.
 /// </summary>
 public static class Program
 {

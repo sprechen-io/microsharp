@@ -3,7 +3,7 @@ using System.Runtime.CompilerServices;
 namespace MicroSharp;
 
 /// <summary>
-/// Puffert PCM-Bloecke fuer genau einen Leser. Adapter schreiben, Anwendungen lesen.
+/// Buffers PCM chunks for exactly one reader. Adapters write and applications read.
 /// </summary>
 internal sealed class MicrophoneSession : IMicrophoneSession
 {

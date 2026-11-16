@@ -1,12 +1,12 @@
 namespace MicroSharp;
 
 /// <summary>
-/// Transportiert einen klassifizierten Fehler einer Mikrofonaufnahme.
+/// Carries a classified microphone-capture error.
 /// </summary>
 public sealed class MicrophoneException : InvalidOperationException
 {
     /// <summary>
-    /// Erstellt die Ausnahme aus einem Fehlercode und einem optionalen Detail.
+    /// Creates the exception from an error code and an optional detail.
     /// </summary>
     public MicrophoneException(MicrophoneErrorCode code, string? detail = null, Exception? innerException = null)
         : base(CreateMessage(code, detail), innerException)
@@ -15,10 +15,10 @@ public sealed class MicrophoneException : InvalidOperationException
         Detail = string.IsNullOrWhiteSpace(detail) ? null : detail.Trim();
     }
 
-    /// <summary>Der klassifizierte Fehler.</summary>
+    /// <summary>The classified error.</summary>
     public MicrophoneErrorCode Code { get; }
 
-    /// <summary>Zusaetzliche Angabe der Quelle, sofern vorhanden.</summary>
+    /// <summary>Additional description of the source, when present.</summary>
     public string? Detail { get; }
 
     private static string CreateMessage(MicrophoneErrorCode code, string? detail)

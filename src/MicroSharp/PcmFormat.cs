@@ -1,19 +1,19 @@
 namespace MicroSharp;
 
 /// <summary>
-/// Beschreibt geliefertes PCM: vorzeichenbehaftete 16-Bit-Abtastwerte, little-endian, ein Kanal.
+/// Describes delivered PCM: signed 16-bit samples, little-endian, one channel.
 /// </summary>
 public sealed class PcmFormat
 {
-    /// <summary>Anzahl der Bytes eines Abtastwerts.</summary>
+    /// <summary>Number of bytes in one sample.</summary>
     public const int BytesPerSample = 2;
 
-    /// <summary>16 kHz, mono, Bloecke von 20 Millisekunden.</summary>
+    /// <summary>16 kHz, mono, chunks of 20 milliseconds.</summary>
     public static PcmFormat Default { get; } = new(16_000, TimeSpan.FromMilliseconds(20));
 
     /// <summary>
-    /// Legt Abtastrate und Blockdauer fest. Die Blockdauer muss ganzzahlig zwischen 10 und 200 Millisekunden liegen
-    /// und an der Abtastrate eine ganze Zahl von Abtastwerten ergeben.
+    /// Sets the sample rate and chunk duration. The chunk duration must be a whole number of
+    /// milliseconds from 10 through 200 and must contain a whole number of samples at that rate.
     /// </summary>
     public PcmFormat(int sampleRateHz, TimeSpan chunkDuration)
     {
@@ -42,26 +42,26 @@ public sealed class PcmFormat
         ChunkDuration = TimeSpan.FromMilliseconds(wholeMilliseconds);
     }
 
-    /// <summary>Abtastwerte je Sekunde.</summary>
+    /// <summary>Samples per second.</summary>
     public int SampleRateHz { get; }
 
-    /// <summary>Immer 1. Mehrkanalige Aufnahme wird nicht geliefert.</summary>
+    /// <summary>Always 1. Multi-channel capture is not delivered.</summary>
     public int Channels => 1;
 
-    /// <summary>Dauer eines vollstaendigen Blocks.</summary>
+    /// <summary>Duration of one complete chunk.</summary>
     public TimeSpan ChunkDuration { get; }
 
-    /// <summary>Abtastwerte in einem Block.</summary>
+    /// <summary>Samples in one chunk.</summary>
     public int SamplesPerChunk => checked((int)((long)SampleRateHz * ChunkDuration.Ticks / TimeSpan.TicksPerSecond));
 
-    /// <summary>Bytes in einem Block.</summary>
+    /// <summary>Bytes in one chunk.</summary>
     public int BytesPerChunk => checked(SamplesPerChunk * BytesPerSample);
 
-    /// <summary>Inhaltstyp mit Rate, Kanalzahl und Kodierung.</summary>
+    /// <summary>Content type with rate, channel count and encoding.</summary>
     public string MediaType =>
         $"audio/pcm;rate={SampleRateHz};channels=1;encoding=signed-integer;bits=16;endian=little";
 
-    /// <summary>Vergleicht Rate und Blockdauer.</summary>
+    /// <summary>Compares rate and chunk duration.</summary>
     public bool Matches(PcmFormat other)
     {
         ArgumentNullException.ThrowIfNull(other);

@@ -3,8 +3,8 @@ using BenchmarkDotNet.Attributes;
 namespace MicroSharp.Benchmarks;
 
 /// <summary>
-/// Misst die gemeinsame PCM-Warteschlange unter CoreCLR.
-/// 16000 Hz, 20 ms, 640 Bytes. DropOldest-Kapazitaet 50. Wait-Kapazitaet 1.
+/// Measures the shared PCM queue on CoreCLR.
+/// 16000 Hz, 20 ms, 640 bytes. DropOldest capacity 50. Wait capacity 1.
 /// </summary>
 [MemoryDiagnoser]
 public class PcmCaptureQueueBenchmarks

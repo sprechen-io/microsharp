@@ -3,11 +3,11 @@ using Microsoft.Extensions.DependencyInjection;
 namespace MicroSharp.Native;
 
 /// <summary>
-/// Optionale Registrierung. Aufrufer koennen <see cref="OpenAlMicrophoneCapture"/> auch selbst erzeugen.
+/// Optional registration. Callers may also construct <see cref="OpenAlMicrophoneCapture"/> themselves.
 /// </summary>
 public static class OpenAlMicrophoneServiceCollectionExtensions
 {
-    /// <summary>Registriert die OpenAL-Aufnahme als Singleton.</summary>
+    /// <summary>Registers the OpenAL capture as a singleton.</summary>
     public static IServiceCollection AddMicroSharpOpenAlMicrophone(
         this IServiceCollection services,
         OpenAlMicrophoneOptions options)

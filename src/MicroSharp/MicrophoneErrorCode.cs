@@ -1,28 +1,28 @@
 namespace MicroSharp;
 
 /// <summary>
-/// Unterscheidet Fehler beim Zugriff auf eine Mikrofonaufnahme.
+/// Distinguishes errors while accessing a microphone capture.
 /// </summary>
 public enum MicrophoneErrorCode
 {
-    /// <summary>Der Zugriff ist aus einem anderen Grund fehlgeschlagen.</summary>
+    /// <summary>Access failed for another reason.</summary>
     Unavailable = 0,
 
-    /// <summary>Die Berechtigung wurde verweigert.</summary>
+    /// <summary>Permission was denied.</summary>
     PermissionDenied = 1,
 
-    /// <summary>Es wurde kein Aufnahmegeraet gefunden.</summary>
+    /// <summary>No capture device was found.</summary>
     DeviceNotFound = 2,
 
-    /// <summary>Das angeforderte Format wird nicht geliefert.</summary>
+    /// <summary>The requested format is not delivered.</summary>
     UnsupportedFormat = 3,
 
-    /// <summary>Die angeforderte Staustrategie wird von diesem Adapter nicht ausgefuehrt.</summary>
+    /// <summary>This adapter does not carry out the requested backpressure strategy.</summary>
     UnsupportedBackpressure = 4,
 
-    /// <summary>Der Aufruf wurde abgebrochen.</summary>
+    /// <summary>The call was cancelled.</summary>
     Cancelled = 5,
 
-    /// <summary>Ein Audioblock passt nicht zum vereinbarten Format.</summary>
+    /// <summary>An audio chunk does not match the agreed format.</summary>
     InvalidChunk = 6,
 }

@@ -1,9 +1,9 @@
 namespace MicroSharp;
 
 /// <summary>
-/// Ein vollstaendiger PCM-Block. <paramref name="Payload"/> gehoert dem Empfaenger.
+/// One complete PCM chunk. <paramref name="Payload"/> belongs to the receiver.
 /// </summary>
-/// <param name="Sequence">Laufende Nummer ab 0 in der Reihenfolge des Einreihens.</param>
-/// <param name="CapturedAt">Zeit seit Beginn der Sitzung.</param>
-/// <param name="Payload">Little-endian, vorzeichenbehaftete 16-Bit-Abtastwerte.</param>
+/// <param name="Sequence">Running number starting at 0 in enqueue order.</param>
+/// <param name="CapturedAt">Time since the session started.</param>
+/// <param name="Payload">Little-endian signed 16-bit samples.</param>
 public sealed record PcmChunk(long Sequence, TimeSpan CapturedAt, byte[] Payload);

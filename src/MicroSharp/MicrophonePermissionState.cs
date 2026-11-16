@@ -1,19 +1,19 @@
 namespace MicroSharp;
 
 /// <summary>
-/// Beschreibt, ob eine Aufnahme erlaubt ist.
+/// Describes whether capture is allowed.
 /// </summary>
 public enum MicrophonePermissionState
 {
-    /// <summary>Der Adapter kann den Berechtigungsstand nicht feststellen.</summary>
+    /// <summary>The adapter cannot determine the permission state.</summary>
     Unknown = 0,
 
-    /// <summary>Der Benutzer wurde noch nicht gefragt oder die Entscheidung steht aus.</summary>
+    /// <summary>The user has not been asked yet, or the decision is still pending.</summary>
     Prompt = 1,
 
-    /// <summary>Die Aufnahme ist erlaubt.</summary>
+    /// <summary>Capture is allowed.</summary>
     Granted = 2,
 
-    /// <summary>Die Aufnahme ist verweigert.</summary>
+    /// <summary>Capture is denied.</summary>
     Denied = 3,
 }

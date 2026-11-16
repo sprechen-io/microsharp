@@ -1,19 +1,19 @@
 namespace MicroSharp;
 
 /// <summary>
-/// Lebenszyklus einer laufenden Aufnahme.
+/// Lifecycle of a running capture.
 /// </summary>
 public enum MicrophoneSessionState
 {
-    /// <summary>Die Sitzung nimmt auf oder haelt bereits gelesene Bloecke bereit.</summary>
+    /// <summary>The session is capturing or still has chunks available that were already read from the source.</summary>
     Running = 0,
 
-    /// <summary>Die Sitzung wurde ohne Fehler abgeschlossen.</summary>
+    /// <summary>The session finished without an error.</summary>
     Stopped = 1,
 
-    /// <summary>Die Sitzung wurde mit einem Fehler abgeschlossen.</summary>
+    /// <summary>The session finished with an error.</summary>
     Faulted = 2,
 
-    /// <summary>Die Sitzung wurde freigegeben.</summary>
+    /// <summary>The session was released.</summary>
     Disposed = 3,
 }

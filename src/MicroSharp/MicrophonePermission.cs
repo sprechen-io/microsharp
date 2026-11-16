@@ -1,8 +1,8 @@
 namespace MicroSharp;
 
 /// <summary>
-/// Ergebnis einer Berechtigungsabfrage ohne laufende Aufnahme.
+/// Result of a permission query without a running capture.
 /// </summary>
-/// <param name="State">Der festgestellte Stand.</param>
-/// <param name="Detail">Optionale Angabe der Quelle.</param>
+/// <param name="State">The determined state.</param>
+/// <param name="Detail">Optional description of the source.</param>
 public sealed record MicrophonePermission(MicrophonePermissionState State, string? Detail);
