@@ -188,8 +188,7 @@ if ! pulseaudio \
   --log-target="file:${runtime}/state/pulse.log" \
   --log-level=info \
   -n \
-  --load="module-native-protocol-unix auth-anonymous=1" \
-  --load="module-null-source source_name=microsharp_null source_properties=device.description=microsharp_null"; then
+  --load="module-native-protocol-unix auth-anonymous=1"; then
   echo "PulseAudio did not start." >&2
   if [[ -f "$runtime/state/pulse.log" ]]; then
     cat "$runtime/state/pulse.log" >&2 || true
@@ -224,9 +223,19 @@ if [[ -z "$MICROSHARP_PULSE_PID" ]]; then
   return 1
 fi
 
+if ! pactl load-module module-null-source source_name=microsharp_null description=microsharp_null; then
+  echo "The null source module did not load." >&2
+  if [[ -f "$runtime/state/pulse.log" ]]; then
+    cat "$runtime/state/pulse.log" >&2 || true
+  fi
+  return 1
+fi
 sources="$(pactl list short sources)"
 printf '%s\n' "$sources"
 if [[ "$sources" != *microsharp_null* ]]; then
   echo "The prepared null source is not listed." >&2
+  if [[ -f "$runtime/state/pulse.log" ]]; then
+    cat "$runtime/state/pulse.log" >&2 || true
+  fi
   return 1
 fi
