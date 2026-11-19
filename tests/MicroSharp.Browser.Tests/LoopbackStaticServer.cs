@@ -9,7 +9,7 @@ internal sealed class LoopbackStaticServer : IAsyncDisposable
     private readonly CancellationTokenSource _stop = new();
     private readonly Task _loop;
 
-    public LoopbackStaticServer(string wwwroot)
+    public LoopbackStaticServer(string wwwroot, string? indexHtml = null)
     {
         var tcp = new System.Net.Sockets.TcpListener(IPAddress.Loopback, 0);
         tcp.Start();
@@ -18,7 +18,7 @@ internal sealed class LoopbackStaticServer : IAsyncDisposable
         Root = new Uri($"http://127.0.0.1:{port}/");
         _listener.Prefixes.Add(Root.AbsoluteUri);
         _listener.Start();
-        _loop = Task.Run(() => Listen(wwwroot, IndexHtml));
+        _loop = Task.Run(() => Listen(wwwroot, indexHtml ?? IndexHtml));
     }
 
     public Uri Root { get; }
@@ -105,7 +105,7 @@ internal sealed class LoopbackStaticServer : IAsyncDisposable
                 body = Encoding.UTF8.GetBytes(indexHtml);
                 type = "text/html; charset=utf-8";
             }
-            else if (path is "/microsharp-capture.js" or "/pcm-recorder-processor.js")
+            else if (path is "/microsharp-capture.js" or "/pcm-recorder-processor.js" or "/pcm-playback-processor.js")
             {
                 var file = Path.Combine(wwwroot, path.TrimStart('/'));
                 body = await File.ReadAllBytesAsync(file, _stop.Token).ConfigureAwait(false);
