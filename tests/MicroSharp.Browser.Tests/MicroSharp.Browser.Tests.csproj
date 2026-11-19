@@ -10,6 +10,7 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="11.0.0" />
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" Version="10.7.0" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.2" />
     <PackageReference Include="Microsoft.Playwright" Version="1.64.1" />
     <PackageReference Include="xunit" Version="2.9.3" />
@@ -20,5 +21,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\MicroSharp.Browser\MicroSharp.Browser.csproj" />
+    <ProjectReference Include="..\..\src\MicroSharp.Native\MicroSharp.Native.csproj" />
   </ItemGroup>
 </Project>
