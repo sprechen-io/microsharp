@@ -16,7 +16,7 @@ public static class ReleaseGate
     public static readonly string[] RequiredJobs = ["native-linux", "native-windows", "net11"];
     public const string NugetOrg = "https://api.nuget.org/v3/index.json";
 
-    private static readonly string[] PackageIds = ["MicroSharp", "MicroSharp.Browser", "MicroSharp.Native", "MicroSharp.Processing"];
+    private static readonly string[] PackageIds = ["MicroSharp", "MicroSharp.Browser", "MicroSharp.Native", "MicroSharp.Processing", "MicroSharp.Browser.Playback"];
     private static readonly Regex VersionPattern = new(@"^\d+\.\d+\.\d+$", RegexOptions.CultureInvariant);
     private static readonly Regex ShaPattern = new(@"^[0-9a-f]{40}$", RegexOptions.CultureInvariant);
     private static readonly JsonSerializerOptions ManifestOptions = new() { WriteIndented = true };
@@ -32,6 +32,12 @@ public static class ReleaseGate
         ],
         ["MicroSharp.Native"] = ["lib/net11.0/MicroSharp.Native.dll"],
         ["MicroSharp.Processing"] = ["lib/net11.0/MicroSharp.Processing.dll"],
+        ["MicroSharp.Browser.Playback"] =
+        [
+            "lib/net11.0/MicroSharp.Browser.Playback.dll",
+            "staticwebassets/microsharp-playback.js",
+            "staticwebassets/pcm-playback-processor.js",
+        ],
     };
 
     public static JsonObject WriteManifest(string packageDir, string propsPath, string commit, long runId, string output)
@@ -535,10 +541,33 @@ public static class ReleaseGate
         {
             var path = found[name];
             RejectNativeLibrary(path);
+            if (string.Equals(expected[name], "MicroSharp.Browser.Playback", StringComparison.Ordinal) &&
+                name.EndsWith(".snupkg", StringComparison.Ordinal))
+            {
+                RequirePlaybackSymbols(path);
+            }
             records.Add(new PackageRecord(expected[name], name, Sha256(File.ReadAllBytes(path))));
         }
 
         return records;
+    }
+
+    private static void RequirePlaybackSymbols(string path)
+    {
+        const string entryName = "lib/net11.0/MicroSharp.Browser.Playback.pdb";
+        using var archive = ZipFile.OpenRead(path);
+        if (archive.GetEntry(entryName) is not { Length: >= 4 } entry)
+        {
+            throw new ReleaseGateException($"{Path.GetFileName(path)} is missing {entryName}");
+        }
+
+        using var stream = entry.Open();
+        Span<byte> signature = stackalloc byte[4];
+        stream.ReadExactly(signature);
+        if (!signature.SequenceEqual("BSJB"u8))
+        {
+            throw new ReleaseGateException($"{entryName} lacks the portable PDB signature");
+        }
     }
 
     private static void RejectNativeLibrary(string path)

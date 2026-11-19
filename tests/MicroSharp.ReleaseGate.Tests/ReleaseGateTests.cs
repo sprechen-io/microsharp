@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using System.Text;
 using System.Text.Json.Nodes;
 using MicroSharp.ReleaseGate;
 
@@ -25,6 +26,7 @@ public sealed class ReleaseGateTests : IDisposable
         WritePackage("MicroSharp.Browser", "browser-dll"u8.ToArray(), "browser-symbols"u8.ToArray(), browserAssets: true);
         WritePackage("MicroSharp.Native", "native-dll"u8.ToArray(), "native-symbols"u8.ToArray(), browserAssets: false);
         WritePackage("MicroSharp.Processing", "processing-dll"u8.ToArray(), "processing-symbols"u8.ToArray(), browserAssets: false);
+        WritePackage("MicroSharp.Browser.Playback", "playback-dll"u8.ToArray(), "playback-symbols"u8.ToArray(), browserAssets: false);
     }
 
     public void Dispose()
@@ -47,6 +49,8 @@ public sealed class ReleaseGateTests : IDisposable
             "MicroSharp.Native.0.1.0.snupkg",
             "MicroSharp.Processing.0.1.0.nupkg",
             "MicroSharp.Processing.0.1.0.snupkg",
+            "MicroSharp.Browser.Playback.0.1.0.nupkg",
+            "MicroSharp.Browser.Playback.0.1.0.snupkg",
         ];
         Assert.Equal(expected, paths.Select(path => Path.GetFileName(path) ?? string.Empty).ToArray());
     }
@@ -120,7 +124,7 @@ public sealed class ReleaseGateTests : IDisposable
         var latest = Run(300, createdAt: "2026-11-15T20:30:00Z");
         var manifest = Manifest(runId: 300);
         var paths = CheckCase(Runs(older, newerFailure, latest), Jobs(300), manifest);
-        Assert.Equal(8, paths.Count);
+        Assert.Equal(10, paths.Count);
     }
 
     [Fact]
@@ -331,6 +335,30 @@ public sealed class ReleaseGateTests : IDisposable
         Assert.Contains("does not match", error.Message, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData("MicroSharp.Browser", "browser-dll", "microsharp-capture.js", "capture-js", "pcm-recorder-processor.js", "processor-js", "playback-js")]
+    [InlineData("MicroSharp.Browser.Playback", "playback-dll", "microsharp-playback.js", "playback-js", "pcm-playback-processor.js", "playback-processor-js", "capture-js")]
+    public void PublishedCopyIsValidatedAgainstItsOwningPackage(
+        string packageId, string dll, string moduleName, string moduleContents,
+        string processorName, string processorContents, string otherPackageContents)
+    {
+        var cache = Path.Combine(_root, "published-copy-cache");
+        var id = packageId.ToLowerInvariant();
+        var module = $"staticwebassets/{moduleName}";
+        WriteCache(cache, id, $"lib/net11.0/{packageId}.dll", Encoding.UTF8.GetBytes(dll));
+        WriteCache(cache, id, module, Encoding.UTF8.GetBytes(moduleContents));
+        WriteCache(cache, id, $"staticwebassets/{processorName}", Encoding.UTF8.GetBytes(processorContents));
+        var published = Path.Combine(_root, "published.js");
+        File.WriteAllText(published, moduleContents);
+
+        PackedRestoreChecker.Verify(_packages, cache, _propsPath, [], [$"{published}={module}"]);
+        File.WriteAllText(published, otherPackageContents);
+
+        var error = Assert.Throws<ReleaseGateException>(
+            () => PackedRestoreChecker.Verify(_packages, cache, _propsPath, [], [$"{published}={module}"]));
+        Assert.Contains("does not match packed", error.Message, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void LocateFindsANestedManifestAndRefusesTwo()
     {
@@ -439,7 +467,7 @@ public sealed class ReleaseGateTests : IDisposable
             Console.SetError(previous);
         }
 
-        Assert.Equal(8, File.ReadAllLines(push).Length);
+        Assert.Equal(10, File.ReadAllLines(push).Length);
     }
 
     [Fact]
@@ -620,6 +648,12 @@ public sealed class ReleaseGateTests : IDisposable
             payload["staticwebassets/pcm-recorder-processor.js"] = "processor-js"u8.ToArray();
         }
 
+        if (packageId == "MicroSharp.Browser.Playback")
+        {
+            payload["staticwebassets/microsharp-playback.js"] = "playback-js"u8.ToArray();
+            payload["staticwebassets/pcm-playback-processor.js"] = "playback-processor-js"u8.ToArray();
+        }
+
         foreach (var symbolsPackage in new[] { false, true })
         {
             var suffix = symbolsPackage ? ".snupkg" : ".nupkg";
@@ -633,8 +667,17 @@ public sealed class ReleaseGateTests : IDisposable
 
             if (symbolsPackage)
             {
-                using var stream = archive.CreateEntry("symbol.txt").Open();
-                stream.Write(symbols);
+                using (var stream = archive.CreateEntry("symbol.txt").Open())
+                {
+                    stream.Write(symbols);
+                }
+
+                if (packageId == "MicroSharp.Browser.Playback")
+                {
+                    using var pdb = archive.CreateEntry("lib/net11.0/MicroSharp.Browser.Playback.pdb").Open();
+                    pdb.Write("BSJB"u8);
+                    pdb.Write(symbols);
+                }
             }
         }
     }
