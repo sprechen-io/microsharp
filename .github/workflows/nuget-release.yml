@@ -7,6 +7,10 @@ on:
         description: Tag to publish, for example v0.1.0
         required: true
         type: string
+      verify_only:
+        description: Verify the published packages without uploading them
+        type: boolean
+        default: false
   push:
     tags:
       - "v*.*.*"
@@ -96,12 +100,14 @@ jobs:
             --push-list artifacts/release/push-list.txt
 
       - name: NuGet login
+        if: ${{ !inputs.verify_only }}
         id: login
         uses: NuGet/login@v1
         with:
           user: ${{ vars.NUGET_USER }}
 
       - name: Push the qualified packages
+        if: ${{ !inputs.verify_only }}
         run: |
           set -euo pipefail
           while IFS= read -r package; do
@@ -129,7 +135,8 @@ jobs:
             </packageSources>
           </configuration>
           EOF
-          for attempt in 1 2 3 4 5 6; do
+          max_attempts=31
+          for ((attempt=1; attempt<=max_attempts; attempt++)); do
             rm -rf "$cache"
             mkdir -p "$cache"
             export NUGET_PACKAGES="$cache"
@@ -137,11 +144,13 @@ jobs:
                 --configfile "$config" \
                 --source https://api.nuget.org/v3/index.json \
                 --force \
+                --no-http-cache \
                 --nologo \
               && dotnet restore samples/MicroSharp.BlazorWasm/MicroSharp.BlazorWasm.csproj \
                 --configfile "$config" \
                 --source https://api.nuget.org/v3/index.json \
                 --force \
+                --no-http-cache \
                 --nologo \
               && dotnet run --project tools/MicroSharp.ReleaseGate/MicroSharp.ReleaseGate.csproj --configuration Release --no-build -- verify-cache \
                 --packages "$(tr -d '[:space:]' < artifacts/release/package-dir.txt)" \
@@ -154,7 +163,7 @@ jobs:
               exit 0
             fi
             echo "nuget.org payload check is not ready (attempt ${attempt})" >&2
-            if [[ "$attempt" -lt 6 ]]; then
+            if [[ "$attempt" -lt "$max_attempts" ]]; then
               sleep 30
             fi
           done
