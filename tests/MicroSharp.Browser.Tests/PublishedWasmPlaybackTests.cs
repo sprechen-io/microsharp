@@ -7,6 +7,7 @@ namespace MicroSharp.Browser.Tests;
 public sealed class PublishedWasmPlaybackTests(ITestOutputHelper output)
 {
     [Fact(Timeout = 120_000)]
+    [Trait("Category", "PublishedPlayback")]
     public async Task PublishedPlaybackLoadsItsWorkletAndRendersToneAcrossRestarts()
     {
         var site = Environment.GetEnvironmentVariable("MICROSHARP_PLAYBACK_PUBLISH_ROOT");
