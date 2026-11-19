@@ -1,0 +1,142 @@
+@using System.Buffers.Binary
+@using Microsoft.AspNetCore.Components
+@using Microsoft.AspNetCore.Components.Web
+@using Microsoft.JSInterop
+@using MicroSharp.Browser.Playback
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+@implements IAsyncDisposable
+
+<main>
+    <h1>PCM playback</h1>
+    <p role="status" id="playback-status">@status</p>
+    <button type="button" @onclick="StartAsync" disabled="@(busy || player is null || outputRate != 0)">Start</button>
+    <button type="button" @onclick="EnqueueToneAsync" disabled="@(busy || player is null || outputRate == 0)">Enqueue tone</button>
+    <button type="button" @onclick="ReadCountersAsync" disabled="@(busy || player is null || outputRate == 0)">Read counters</button>
+    <button type="button" @onclick="StopAsync" disabled="@(busy || player is null || outputRate == 0)">Stop</button>
+    <button type="button" @onclick="DisposePlayerAsync" disabled="@(busy || player is null)">Dispose</button>
+
+    <dl>
+        <dt>Output sample rate (Hz)</dt>
+        <dd id="output-rate">@outputRate</dd>
+        <dt>Accepted input frames (last write)</dt>
+        <dd id="accepted-input-frames">@(writeResult?.AcceptedInputFrames)</dd>
+        <dt>Rejected input frames (last write)</dt>
+        <dd id="rejected-write-frames">@(writeResult?.RejectedInputFrames)</dd>
+        <dt>Content output frames</dt>
+        <dd id="content-output-frames">@(snapshot?.ContentOutputFrames)</dd>
+        <dt>Underrun output frames</dt>
+        <dd id="underrun-output-frames">@(snapshot?.UnderrunOutputFrames)</dd>
+        <dt>Rejected input frames (total)</dt>
+        <dd id="rejected-input-frames">@(snapshot?.RejectedInputFrames)</dd>
+    </dl>
+
+    @if (error is not null)
+    {
+        <p role="alert">@error</p>
+    }
+</main>
+
+@code {
+    private const int InputRate = 24_000;
+    private const int CapacityFrames = InputRate;
+    private const int ToneFrames = InputRate / 2;
+    private BrowserPcmPlayer? player;
+    private PcmPlaybackWriteResult? writeResult;
+    private PcmPlaybackSnapshot? snapshot;
+    private int outputRate;
+    private bool busy;
+    private bool disposed;
+    private string status = "Loading playback module";
+    private string? error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RunAsync(async () =>
+        {
+            var created = await BrowserPcmPlayer.CreateAsync(
+                JS, new Uri(Navigation.BaseUri), new BrowserPcmPlaybackOptions(InputRate, CapacityFrames));
+            if (disposed)
+            {
+                await created.DisposeAsync();
+                return;
+            }
+
+            player = created;
+        }, "Ready");
+    }
+
+    private Task StartAsync() => RunAsync(async () =>
+    {
+        outputRate = await player!.StartAsync();
+    }, "Playing");
+
+    private Task EnqueueToneAsync() => RunAsync(async () =>
+    {
+        var pcm = new byte[ToneFrames * sizeof(short)];
+        for (var frame = 0; frame < ToneFrames; frame++)
+        {
+            var sample = (short)(8192 * Math.Sin(2 * Math.PI * 440 * frame / InputRate));
+            BinaryPrimitives.WriteInt16LittleEndian(pcm.AsSpan(frame * sizeof(short)), sample);
+        }
+
+        writeResult = await player!.EnqueueAsync(pcm);
+        snapshot = await player.GetSnapshotAsync();
+    }, "Playing");
+
+    private Task ReadCountersAsync() => RunAsync(async () =>
+    {
+        snapshot = await player!.GetSnapshotAsync();
+    }, "Playing");
+
+    private Task StopAsync() => RunAsync(async () =>
+    {
+        await player!.StopAsync();
+        ClearCounters();
+    }, "Stopped");
+
+    private Task DisposePlayerAsync() => RunAsync(async () => await DisposeAsync(), "Disposed");
+
+    private async Task RunAsync(Func<Task> operation, string successStatus)
+    {
+        if (busy || disposed)
+        {
+            return;
+        }
+
+        busy = true;
+        error = null;
+        try
+        {
+            await operation();
+            status = successStatus;
+        }
+        catch (Exception ex)
+        {
+            status = "Playback operation failed";
+            error = ex.Message;
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private void ClearCounters()
+    {
+        outputRate = 0;
+        writeResult = null;
+        snapshot = null;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        disposed = true;
+        ClearCounters();
+        if (player is { } current)
+        {
+            player = null;
+            await current.DisposeAsync();
+        }
+    }
+}
