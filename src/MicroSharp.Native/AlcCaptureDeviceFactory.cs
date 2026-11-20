@@ -20,6 +20,12 @@ internal sealed class AlcCaptureDeviceFactory : IOpenAlCaptureDeviceFactory
 
     public IOpenAlCaptureHandle Open(string deviceName, int sampleRateHz, int bufferSamples)
     {
+        // Apple's OpenAL can open a capture device even when the requested name is absent.
+        if (OperatingSystem.IsMacOS() && !ListCaptureDevices().Contains(deviceName, StringComparer.Ordinal))
+        {
+            throw new MicrophoneException(MicrophoneErrorCode.DeviceNotFound, deviceName);
+        }
+
         return Guard(() =>
         {
             var device = ALC.CaptureOpenDevice(deviceName, sampleRateHz, ALFormat.Mono16, bufferSamples);

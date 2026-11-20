@@ -29,6 +29,8 @@ Delivered audio is signed 16-bit little-endian, one channel, at 8000, 16000, 240
 
 The binding is `OpenTK.Audio.OpenAL` 4.9.4 (MIT). It calls `ALC.CaptureOpenDevice`, `CaptureStart`, `CaptureSamples`, `CaptureStop`, and `CaptureCloseDevice` with `ALFormat.Mono16`. The native library is not part of the NuGet package.
 
+On macOS the adapter checks the requested name against OpenAL's capture list before opening it because Apple's framework can open a device for an absent name.
+
 | System | Library the binding looks for | This repository's claim |
 | --- | --- | --- |
 | Linux | `libopenal.so.1` | CI loads the library. An explicit invalid name is device-not-found. A prepared virtual source named `microsharp_null` is a separate PCM check and is not a physical microphone. |
