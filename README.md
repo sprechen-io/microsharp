@@ -47,6 +47,12 @@ The module is served from `_content/MicroSharp.Browser/microsharp-capture.js`. T
 
 `BrowserCaptureController` besitzt Erwerb, Wiederverwendung, Stopp und Freigabe einer Browserquelle. Das Blazor-Beispiel zeigt diese Steuerung mit der gewaehlten Rate. `ReadRightSized` liefert die passende Kopie aus dem PCM-Verlauf.
 
+### Browser playback
+
+`MicroSharp.Browser.Playback` plays mono PCM16LE through an owned audio context. Await the final `EnqueueAsync`, then optionally call `DrainAsync(cancellationToken)` once to close input and wait for the render worklet. The drain watchdog reports a timeout if the worklet does not acknowledge within five seconds. Stop and dispose interrupt a pending drain. After end-of-input is sent, canceling the wait leaves input closed. Call `StopAsync` and then `StartAsync` to write again.
+
+The worklet renders source positions through the last real sample, inclusive. Fractional positions use two real samples. Zero-valued PCM counts as content, and silence after the terminal position is padding. Empty input has zero content frames. Drain covers the worklet output boundary. Device latency and any application limiter, fade or other DSP tail have their own timing.
+
 ## Samples
 
 `samples/MicroSharp.Console` is an ordinary .NET consumer:

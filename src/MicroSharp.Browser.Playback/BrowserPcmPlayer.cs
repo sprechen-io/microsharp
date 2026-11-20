@@ -7,7 +7,7 @@ public sealed class BrowserPcmPlayer : IAsyncDisposable
 {
     private const string ModulePath = "_content/MicroSharp.Browser.Playback/microsharp-playback.js";
     private readonly IJSObjectReference player;
-    // Regular operations take the gate immediately. Teardown waits for the current interop call.
+    // Regular operations take the gate immediately. Teardown can run while drain awaits rendering.
     private readonly SemaphoreSlim operation = new(1);
     private int pendingTeardowns;
     private int disposeRequested;
@@ -112,6 +112,32 @@ public sealed class BrowserPcmPlayer : IAsyncDisposable
         {
             operation.Release();
         }
+    }
+
+    /// <summary>Ends input for the active playback run and waits for its final PCM output to render.</summary>
+    /// <remarks>
+    /// Call once per run, after awaiting the final write. Stop and start the player before writing again.
+    /// Cancellation after sending end-of-input cancels the wait and leaves input closed.
+    /// Completion refers to output from the playback worklet. Device latency and downstream processing are outside that boundary.
+    /// </remarks>
+    /// <exception cref="InvalidOperationException">Another playback operation is in progress.</exception>
+    /// <exception cref="OperationCanceledException">The caller canceled the wait.</exception>
+    /// <exception cref="JSException">The drain could not start or finish, including a render timeout, processor failure or stop.</exception>
+    public async ValueTask DrainAsync(CancellationToken cancellationToken = default)
+    {
+        await EnterOperationAsync();
+        ValueTask drain;
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            drain = player.InvokeVoidAsync("drain", cancellationToken);
+        }
+        finally
+        {
+            operation.Release();
+        }
+
+        await drain;
     }
 
     /// <summary>Stops playback, discards buffered PCM and waits for the audio context to close.</summary>

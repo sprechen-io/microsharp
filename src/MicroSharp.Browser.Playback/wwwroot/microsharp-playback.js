@@ -35,7 +35,9 @@ export function createPlayer(inputRate, capacity) {
         if (current === run) {
             current = undefined;
         }
-        run.snapshot?.reject(new Error("Playback stopped."));
+        const stopped = new Error("Playback stopped.");
+        run.snapshot?.reject(stopped);
+        run.drain?.reject(stopped);
         if (run.node) {
             run.node.onprocessorerror = null;
             run.node.disconnect();
@@ -60,6 +62,8 @@ export function createPlayer(inputRate, capacity) {
                 underrunOutputFrames: message.underrunOutputFrames,
                 rejectedInputFrames: run.rejected
             });
+        } else if (message.kind === "drained") {
+            run.drain?.resolve();
         }
     }
 
@@ -75,7 +79,7 @@ export function createPlayer(inputRate, capacity) {
         const context = new AudioContext();
         const run = {
             context, generation: ++generation, sent: 0, retired: 0, rejected: 0,
-            reserved: 0, nextRequest: 0
+            reserved: 0, nextRequest: 0, inputEnded: false
         };
         current = run;
         try {
@@ -100,6 +104,7 @@ export function createPlayer(inputRate, capacity) {
             node.onprocessorerror = () => {
                 run.error = new Error("The playback audio processor failed.");
                 run.snapshot?.reject(run.error);
+                run.drain?.reject(run.error);
             };
             // A reply confirms that the processor constructor and port are working.
             await snapshot(run);
@@ -126,10 +131,34 @@ export function createPlayer(inputRate, capacity) {
         }
     }
 
+    async function drain() {
+        const run = activeRun();
+        if (run.inputEnded) {
+            throw new Error("Playback input has already ended.");
+        }
+        if (run.reserved !== 0) {
+            throw new Error("A playback write is already in progress.");
+        }
+
+        run.inputEnded = true;
+        try {
+            await withDeadline(new Promise((resolve, reject) => {
+                run.drain = { resolve, reject };
+                run.node.port.postMessage({ kind: "eof", generation: run.generation });
+            }), "Playback drain timed out.");
+        } finally {
+            run.drain = undefined;
+        }
+    }
+
     return {
         start,
+        drain,
         reserve(frames) {
             const run = activeRun();
+            if (run.inputEnded) {
+                throw new Error("Playback input has already ended.");
+            }
             if (run.reserved !== 0) {
                 throw new Error("A playback write is already in progress.");
             }
