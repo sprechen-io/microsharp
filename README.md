@@ -33,9 +33,9 @@ The binding is `OpenTK.Audio.OpenAL` 4.9.4 (MIT). It calls `ALC.CaptureOpenDevic
 | --- | --- | --- |
 | Linux | `libopenal.so.1` | CI loads the library. An explicit invalid name is device-not-found. A prepared virtual source named `microsharp_null` is a separate PCM check and is not a physical microphone. |
 | Windows | `openal32.dll` | CI loads OpenAL Soft 1.25.2 Win64 as `openal32.dll` and checks the same invalid name. That is the load path. It is not a physical recording. |
-| macOS | Apple's OpenAL framework path by default | Not a supported claim. |
+| macOS 15 (Apple Silicon) | Apple's OpenAL framework | The [`native-macos` CI job](.github/workflows/ci.yml) checks OpenAL loading and rejection of an explicit absent capture device. Lifecycle and in-process PCM tests use managed fixtures. Physical microphone recording is outside this CI job's scope. |
 
-Install OpenAL Soft before opening a device. On Linux that is `libopenal.so.1`. On Windows the binding loads `openal32.dll`. A missing library is `Unavailable`, which is distinct from `DeviceNotFound`, and a test that needs the library fails in that case. The native library is not part of the NuGet package. The Windows CI download is OpenAL Soft 1.25.2, recorded in `native/openal-soft-windows.json`.
+On Linux and Windows, install OpenAL Soft before opening a device. On Linux that is `libopenal.so.1`. On Windows the binding loads `openal32.dll`. A missing library is `Unavailable`, which is distinct from `DeviceNotFound`, and a test that needs the library fails in that case. The native library is not part of the NuGet package. The Windows CI download is OpenAL Soft 1.25.2, recorded in `native/openal-soft-windows.json`.
 
 `benchmarks/MicroSharp.Benchmarks` measures the shared PCM queue, the PCM history ring, and PCM16LE block analysis on CoreCLR. It is not a package. The CI Dry run only starts the harness. Measured runs are the manual `Benchmarks` workflow. Those numbers are not browser or WebAssembly results.
 
