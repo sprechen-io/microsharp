@@ -13,6 +13,8 @@ class PcmPlaybackProcessor extends AudioWorkletProcessor {
         this.creditPending = false;
         this.content = 0;
         this.underrun = 0;
+        this.ended = false;
+        this.drained = false;
         this.port.onmessage = ({ data }) => this.receive(data);
     }
 
@@ -23,6 +25,9 @@ class PcmPlaybackProcessor extends AudioWorkletProcessor {
 
         switch (message.kind) {
             case "pcm": {
+                if (this.ended) {
+                    return;
+                }
                 const bytes = new DataView(message.bytes.buffer, message.bytes.byteOffset, message.bytes.byteLength);
                 const frames = bytes.byteLength / 2;
                 if (!Number.isInteger(frames) || frames > this.frames.length - this.count) {
@@ -36,6 +41,9 @@ class PcmPlaybackProcessor extends AudioWorkletProcessor {
                 this.count += frames;
                 break;
             }
+            case "eof":
+                this.ended = true;
+                break;
             case "creditAck":
                 this.creditPending = false;
                 this.reportCredit();
@@ -71,7 +79,11 @@ class PcmPlaybackProcessor extends AudioWorkletProcessor {
 
     process(_inputs, outputs) {
         const output = outputs[0]?.[0];
-        if (!output) {
+        if (!output?.length) {
+            return true;
+        }
+        if (this.drained) {
+            output.fill(0);
             return true;
         }
 
@@ -94,8 +106,22 @@ class PcmPlaybackProcessor extends AudioWorkletProcessor {
         }
         output.fill(0, written);
         this.content += written;
-        this.underrun += output.length - written;
+        // At EOF a fractional position needs two real samples. An exact position needs only one.
+        this.drained = this.ended && this.count <= (this.fraction === 0 ? 0 : 1);
+        if (this.drained) {
+            this.skip = this.count;
+            this.retireSkippedFrames();
+        } else {
+            this.underrun += output.length - written;
+        }
         this.reportCredit();
+        if (this.drained) {
+            this.port.postMessage({
+                kind: "drained",
+                generation: this.generation,
+                contentOutputFrames: this.content
+            });
+        }
         return true;
     }
 }
