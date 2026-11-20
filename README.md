@@ -53,6 +53,8 @@ The module is served from `_content/MicroSharp.Browser/microsharp-capture.js`. T
 
 The worklet renders source positions through the last real sample, inclusive. Fractional positions use two real samples. Zero-valued PCM counts as content, and silence after the terminal position is padding. Empty input has zero content frames. Drain covers the worklet output boundary. Device latency and any application limiter, fade or other DSP tail have their own timing.
 
+Browser JavaScript hosts can import `createBorrowedPlayer(context, destination, inputRate, capacity)` from the playback module. Activate the context before starting the player and supply an input-capable node in that context. Reserve frames, then pass exactly the reserved prefix as a `Float32Array` view to `enqueue`. The player copies that view and renders it at Float32 precision. Stop detaches the playback worklet from the caller's graph. The caller manages the context and its other nodes.
+
 ## Samples
 
 `samples/MicroSharp.Console` is an ordinary .NET consumer:

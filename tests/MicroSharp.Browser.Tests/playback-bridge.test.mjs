@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createPlayer } from "../../src/MicroSharp.Browser.Playback/wwwroot/microsharp-playback.js";
+import { createBorrowedPlayer, createPlayer } from "../../src/MicroSharp.Browser.Playback/wwwroot/microsharp-playback.js";
 
 function setGlobal(t, name, value) {
     const previous = Object.getOwnPropertyDescriptor(globalThis, name);
@@ -14,7 +14,7 @@ function setGlobal(t, name, value) {
     });
 }
 
-async function startPlayer(t) {
+async function startPlayer(t, borrow = false) {
     const nodes = [];
     setGlobal(t, "isSecureContext", true);
     setGlobal(t, "AudioContext", class {
@@ -28,8 +28,8 @@ async function startPlayer(t) {
     setGlobal(t, "AudioWorkletNode", class {
         messages = [];
         port = {
-            postMessage: message => {
-                this.messages.push(message);
+            postMessage: (message, transfer) => {
+                this.messages.push(structuredClone(message, { transfer }));
                 if (message.kind === "snapshot") {
                     queueMicrotask(() => this.emit("snapshot", { request: message.request }));
                 }
@@ -45,14 +45,20 @@ async function startPlayer(t) {
         emit(kind, fields) {
             this.port.onmessage?.({ data: { kind, generation: this.generation, ...fields } });
         }
-        connect() {}
-        disconnect() {}
+        connect(destination) { this.destination = destination; }
+        disconnect() { this.destination = undefined; }
     });
 
-    const player = createPlayer(24000, 2);
+    const context = borrow ? new AudioContext() : undefined;
+    const destination = borrow ? { context } : undefined;
+    if (borrow) {
+        await context.resume();
+        context.resume = context.close = () => assert.fail("Borrowed context lifetime belongs to the caller.");
+    }
+    const player = borrow ? createBorrowedPlayer(context, destination, 24000, 2) : createPlayer(24000, 2);
     await player.start();
     t.after(() => player.stop());
-    return { player, nodes };
+    return { player, nodes, context, destination };
 }
 
 test("drain follows PCM and closes reservations even before the render reply", { timeout: 1000 }, async t => {
@@ -117,4 +123,45 @@ test("missing render acknowledgment fails at the watchdog and leaves input seale
     node.emit("drained");
     assert.throws(() => player.reserve(1), /input has already ended/);
     await assert.rejects(player.drain(), /input has already ended/);
+});
+
+test("borrowed Float32 admission is bounded, validates views and transfers a private copy", { timeout: 1000 }, async t => {
+    const { player, nodes: [node], context, destination } = await startPlayer(t, true);
+    assert.throws(() => createBorrowedPlayer(context, { context: {} }, 24000, 2), /must belong/);
+    assert.throws(() => createBorrowedPlayer(context, destination, 24000, 1), /capacity/);
+    assert.equal(node.destination, destination);
+    assert.throws(() => player.reserve(1.5), /nonnegative integer/);
+    assert.equal(player.reserve(3), 2);
+    assert.throws(() => player.enqueue(new Int16Array(2)), /Float32/);
+    assert.throws(() => player.enqueue(new Float32Array(3)), /reservation/);
+
+    const backing = Float32Array.of(9, 0.12345678, -0.00000021, 8);
+    const view = backing.subarray(1, 3);
+    const expected = Array.from(view);
+    player.enqueue(view);
+    backing.fill(0);
+    const message = node.messages.at(-1);
+    assert.equal(message.kind, "float32");
+    assert.deepEqual(Array.from(message.samples), expected);
+    assert.equal(message.samples.buffer.byteLength, 8);
+    assert.equal(player.reserve(1), 0);
+    node.emit("credit", { retired: 1 });
+    assert.equal(player.reserve(2), 1);
+    player.cancelReservation();
+    await player.stop();
+    assert.equal(node.destination, undefined);
+    assert.equal(context.state, "running");
+});
+
+test("stopping during borrowed startup fences late module loading", { timeout: 1000 }, async t => {
+    const { player, nodes, context } = await startPlayer(t, true);
+    await player.stop();
+    let loaded;
+    context.audioWorklet.addModule = () => new Promise(resolve => { loaded = resolve; });
+    const stopped = assert.rejects(player.start(), /Playback stopped/);
+    await player.stop();
+    loaded();
+    await stopped;
+    assert.equal(nodes.length, 1);
+    assert.equal(context.state, "running");
 });

@@ -197,6 +197,18 @@ test("EOF drops a downsample skip beyond the input boundary after retiring late 
     assert.deepEqual(worklet.credits(), [2, 3]);
 });
 
+test("Float32 ingress shares the bounded ring and keeps samples between PCM16 steps", () => {
+    const worklet = createWorklet(24000, 48000, 2);
+    const samples = Float32Array.of(0.12345678, -0.00000021);
+    exceedsReservation(() => worklet.send("float32", { samples: new Float32Array(3) }));
+    worklet.send("float32", { samples });
+    exceedsReservation(() => worklet.send("float32", { samples }));
+    worklet.send("eof");
+    const midpoint = Math.fround(samples[0] + (samples[1] - samples[0]) / 2);
+    assert.deepEqual(worklet.render(4), [samples[0], midpoint, samples[1], 0].map(value => value * 32768));
+    assert.deepEqual(worklet.drains(), [3]);
+});
+
 for (const [inputRate, outputRate, input] of [
     [24_000, 48_000, [2000, -2000, 4000]],
     [24_000, 44_100, [2000, -2000, 4000, -1000, 8000]],

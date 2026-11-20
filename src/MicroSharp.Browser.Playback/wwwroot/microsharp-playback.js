@@ -16,8 +16,24 @@ async function withDeadline(operation, message) {
     }
 }
 
-// One player owns its context. The bridge tracks credit before PCM crosses interop.
 export function createPlayer(inputRate, capacity) {
+    return createTransport(inputRate, capacity);
+}
+
+export function createBorrowedPlayer(context, destination, inputRate, capacity) {
+    if (!context || !destination || destination.context !== context) {
+        throw new TypeError("Playback destination must belong to the borrowed audio context.");
+    }
+    if (!Number.isInteger(inputRate) || inputRate < 8000 || inputRate > 192000) {
+        throw new RangeError("Playback input rate must be an integer from 8000 through 192000 Hz.");
+    }
+    if (!Number.isInteger(capacity) || capacity < 2 || capacity > 192000) {
+        throw new RangeError("Playback capacity must be an integer from 2 through 192000 frames.");
+    }
+    return createTransport(inputRate, capacity, { context, destination });
+}
+
+function createTransport(inputRate, capacity, borrowed) {
     let current;
     let generation = 0;
 
@@ -32,9 +48,10 @@ export function createPlayer(inputRate, capacity) {
     }
 
     async function close(run) {
-        if (current === run) {
-            current = undefined;
+        if (current !== run) {
+            return;
         }
+        current = undefined;
         const stopped = new Error("Playback stopped.");
         run.snapshot?.reject(stopped);
         run.drain?.reject(stopped);
@@ -44,7 +61,7 @@ export function createPlayer(inputRate, capacity) {
             run.node.port.onmessage = null;
             run.node.port.close();
         }
-        if (run.context.state !== "closed") {
+        if (!borrowed && run.context.state !== "closed") {
             await run.context.close();
         }
     }
@@ -72,11 +89,11 @@ export function createPlayer(inputRate, capacity) {
             activeRun();
             return current.context.sampleRate;
         }
-        if (!globalThis.isSecureContext || !globalThis.AudioContext || !globalThis.AudioWorkletNode) {
+        if (!globalThis.isSecureContext || !globalThis.AudioWorkletNode || (!borrowed && !globalThis.AudioContext)) {
             throw new Error("Playback requires AudioWorklet in a secure browser context.");
         }
 
-        const context = new AudioContext();
+        const context = borrowed ? borrowed.context : new AudioContext();
         const run = {
             context, generation: ++generation, sent: 0, retired: 0, rejected: 0,
             reserved: 0, nextRequest: 0, inputEnded: false
@@ -86,10 +103,18 @@ export function createPlayer(inputRate, capacity) {
             if (!context.audioWorklet) {
                 throw new Error("AudioWorklet is unavailable.");
             }
-            // Request activation immediately from the host gesture.
-            await withDeadline(
-                Promise.all([context.resume(), context.audioWorklet.addModule(processorUrl.href)]),
-                "Playback activation or worklet loading timed out.");
+            if (borrowed) {
+                if (context.state !== "running") {
+                    throw new Error("Borrowed playback requires a running audio context.");
+                }
+                await withDeadline(context.audioWorklet.addModule(processorUrl.href), "Playback worklet loading timed out.");
+            } else {
+                // Request activation immediately from the host gesture.
+                await withDeadline(
+                    Promise.all([context.resume(), context.audioWorklet.addModule(processorUrl.href)]),
+                    "Playback activation or worklet loading timed out.");
+            }
+            checkCurrent(run);
             if (context.state !== "running") {
                 throw new Error("The audio context did not enter the running state.");
             }
@@ -108,11 +133,18 @@ export function createPlayer(inputRate, capacity) {
             };
             // A reply confirms that the processor constructor and port are working.
             await snapshot(run);
-            node.connect(context.destination);
+            checkCurrent(run);
+            node.connect(borrowed ? borrowed.destination : context.destination);
             return context.sampleRate;
         } catch (error) {
             await close(run);
             throw error;
+        }
+    }
+
+    function checkCurrent(run) {
+        if (current !== run) {
+            throw new Error("Playback stopped.");
         }
     }
 
@@ -159,6 +191,9 @@ export function createPlayer(inputRate, capacity) {
             if (run.inputEnded) {
                 throw new Error("Playback input has already ended.");
             }
+            if (borrowed && (!Number.isSafeInteger(frames) || frames < 0)) {
+                throw new RangeError("Playback reservation must be a nonnegative integer frame count.");
+            }
             if (run.reserved !== 0) {
                 throw new Error("A playback write is already in progress.");
             }
@@ -167,14 +202,22 @@ export function createPlayer(inputRate, capacity) {
             run.reserved = accepted;
             return accepted;
         },
-        enqueue(bytes) {
+        enqueue(samples) {
             const run = activeRun();
-            if (run.reserved === 0 || bytes.byteLength !== run.reserved * 2) {
-                throw new Error("PCM does not match the playback reservation.");
+            if (borrowed) {
+                if (!(samples instanceof Float32Array) || run.reserved === 0 || samples.length !== run.reserved) {
+                    throw new Error("Float32 samples do not match the playback reservation.");
+                }
+                const owned = new Float32Array(samples);
+                run.node.port.postMessage({ kind: "float32", generation: run.generation, samples: owned }, [owned.buffer]);
+            } else {
+                if (run.reserved === 0 || samples.byteLength !== run.reserved * 2) {
+                    throw new Error("PCM does not match the playback reservation.");
+                }
+                // Blazor may own the interop array. Transfer only a private copy of the admitted bytes.
+                const owned = new Uint8Array(samples);
+                run.node.port.postMessage({ kind: "pcm", generation: run.generation, bytes: owned }, [owned.buffer]);
             }
-            // Blazor may own the interop array. Transfer only a private copy of the admitted bytes.
-            const owned = new Uint8Array(bytes);
-            run.node.port.postMessage({ kind: "pcm", generation: run.generation, bytes: owned }, [owned.buffer]);
             run.sent += run.reserved;
             run.reserved = 0;
         },

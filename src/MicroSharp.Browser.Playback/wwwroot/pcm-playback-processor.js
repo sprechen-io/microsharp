@@ -3,7 +3,7 @@ class PcmPlaybackProcessor extends AudioWorkletProcessor {
         super();
         this.inputRate = inputRate;
         this.generation = generation;
-        this.frames = new Int16Array(capacity);
+        this.frames = new Float32Array(capacity);
         this.head = 0;
         this.count = 0;
         this.skip = 0;
@@ -24,18 +24,22 @@ class PcmPlaybackProcessor extends AudioWorkletProcessor {
         }
 
         switch (message.kind) {
-            case "pcm": {
+            case "pcm":
+            case "float32": {
                 if (this.ended) {
                     return;
                 }
-                const bytes = new DataView(message.bytes.buffer, message.bytes.byteOffset, message.bytes.byteLength);
-                const frames = bytes.byteLength / 2;
+                const floatInput = message.kind === "float32";
+                const samples = floatInput
+                    ? message.samples
+                    : new DataView(message.bytes.buffer, message.bytes.byteOffset, message.bytes.byteLength);
+                const frames = floatInput ? samples.length : samples.byteLength / 2;
                 if (!Number.isInteger(frames) || frames > this.frames.length - this.count) {
                     throw new RangeError("PCM exceeds the playback reservation.");
                 }
                 let tail = (this.head + this.count) % this.frames.length;
                 for (let index = 0; index < frames; index++) {
-                    this.frames[tail] = bytes.getInt16(index * 2, true);
+                    this.frames[tail] = floatInput ? samples[index] : samples.getInt16(index * 2, true) / 32768;
                     tail = (tail + 1) % this.frames.length;
                 }
                 this.count += frames;
@@ -96,7 +100,7 @@ class PcmPlaybackProcessor extends AudioWorkletProcessor {
                 const right = this.frames[(this.head + 1) % this.frames.length];
                 value += (right - left) * (this.fraction / sampleRate);
             }
-            output[written++] = value / 32768;
+            output[written++] = value;
 
             // The fractional source position is an integer numerator over the context rate.
             const position = this.fraction + this.inputRate;
