@@ -49,6 +49,16 @@ The module is served from `_content/MicroSharp.Browser/microsharp-capture.js`. T
 
 `BrowserCaptureController` besitzt Erwerb, Wiederverwendung, Stopp und Freigabe einer Browserquelle. Das Blazor-Beispiel zeigt diese Steuerung mit der gewaehlten Rate. `ReadRightSized` liefert die passende Kopie aus dem PCM-Verlauf.
 
+### Browser playback
+
+`MicroSharp.Browser.Playback` plays mono PCM16LE through an owned audio context. Await the final `EnqueueAsync`, then optionally call `DrainAsync(cancellationToken)` once to close input and wait for the render worklet. The drain watchdog reports a timeout if the worklet does not acknowledge within five seconds. Stop and dispose interrupt a pending drain. After end-of-input is sent, canceling the wait leaves input closed. Call `StopAsync` and then `StartAsync` to write again.
+
+The worklet renders source positions through the last real sample, inclusive. Fractional positions use two real samples. Zero-valued PCM counts as content, and silence after the terminal position is padding. Empty input has zero content frames. Drain covers the worklet output boundary. Device latency and any application limiter, fade or other DSP tail have their own timing.
+
+Browser JavaScript hosts can import `createBorrowedPlayer(context, destination, inputRate, capacity)` from the playback module. Activate the context before starting the player and supply an input-capable node in that context. Reserve frames, then pass exactly the reserved prefix as a `Float32Array` view to `enqueue`. The player copies that view and renders it at Float32 precision. Stop detaches the playback worklet from the caller's graph. The caller manages the context and its other nodes.
+
+A single borrowed writer can call `waitForCredit(signal)` when the FIFO is full, then call `reserve` again to claim frames. The wait accepts an optional `AbortSignal` and has a five-second deadline. A host that wraps its context can pass a matching worklet node constructor as the fifth argument to `createBorrowedPlayer`.
+
 ## Samples
 
 `samples/MicroSharp.Console` is an ordinary .NET consumer:

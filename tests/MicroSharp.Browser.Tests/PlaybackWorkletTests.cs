@@ -14,8 +14,16 @@ public sealed class PlaybackWorkletTests(ITestOutputHelper output)
     [InlineData(24_000, 48_000, 24_000, 997, true)]
     [InlineData(48_000, 24_000, 48_000, 997, false)]
     [InlineData(48_000, 24_000, 48_000, 997, true)]
-    public async Task RendersPcmAndZeroFillsTheRemainder(
+    public Task RendersPcmAndZeroFillsTheRemainder(
         int inputRate, int outputRate, int inputFrames, int toneHz, bool split)
+        => VerifyRenderAsync(inputRate, outputRate, inputFrames, toneHz, split, drain: false);
+
+    [Fact(Timeout = 60_000)]
+    public Task AcknowledgesFractionalEofInTheFinalContentQuantum()
+        => VerifyRenderAsync(24_000, 44_100, 70, 997, split: true, drain: true);
+
+    private async Task VerifyRenderAsync(
+        int inputRate, int outputRate, int inputFrames, int toneHz, bool split, bool drain)
     {
         const int quantum = 128;
         const double initialPhase = 0.37;
@@ -23,7 +31,8 @@ public sealed class PlaybackWorkletTests(ITestOutputHelper output)
             .Select(frame => (short)Math.Round(16_384 * Math.Sin(2 * Math.PI * toneHz * frame / inputRate + initialPhase)))
             .ToArray();
         var contentFrames = 1 + (int)((inputFrames - 1L) * outputRate / inputRate);
-        var checkpoint = quantum + ((contentFrames + quantum - 1) / quantum + 1) * quantum;
+        var contentQuanta = (contentFrames + quantum - 1) / quantum;
+        var checkpoint = quantum + (contentQuanta + (drain ? 0 : 1)) * quantum;
 
         await using var server = new LoopbackStaticServer(FindWwwRoot(), "<!doctype html><title>Playback worklet test</title>");
         using var playwright = await Playwright.CreateAsync();
@@ -32,7 +41,7 @@ public sealed class PlaybackWorkletTests(ITestOutputHelper output)
         await page.GotoAsync(server.Root.AbsoluteUri, new() { Timeout = 15_000 });
         var renderJson = await page.EvaluateAsync<string>(
             """
-            async ({ input, inputRate, outputRate, quantum, checkpoint, split }) => {
+            async ({ input, inputRate, outputRate, quantum, checkpoint, split, drain }) => {
                 const context = new OfflineAudioContext(1, checkpoint + quantum, outputRate);
                 function withTimeout(promise, operation) {
                     let timer;
@@ -52,11 +61,14 @@ public sealed class PlaybackWorkletTests(ITestOutputHelper output)
                 node.connect(context.destination);
 
                 let pendingSnapshot;
+                const drains = [];
                 node.port.onmessage = ({ data }) => {
                     if (data.kind === "credit") {
                         node.port.postMessage({ kind: "creditAck", generation });
                     } else if (data.kind === "snapshot" && pendingSnapshot?.request === data.request) {
                         pendingSnapshot.resolve(data);
+                    } else if (data.kind === "drained") {
+                        drains.push({ Generation: data.generation, ContentFrames: data.contentOutputFrames });
                     }
                 };
                 function snapshot(request) {
@@ -84,22 +96,28 @@ public sealed class PlaybackWorkletTests(ITestOutputHelper output)
                 const rendering = context.startRendering();
                 await withTimeout(beforeContent, "suspend before content");
                 postPcm();
-                // The port delivers messages in order. This reply acknowledges every prefill block.
+                if (drain) {
+                    node.port.postMessage({ kind: "eof", generation });
+                }
+                // The snapshot follows all prefill blocks and EOF on the same port.
                 const before = await snapshot(1);
+                const drainsBeforeRender = drains.length;
                 const startFrame = Math.round(context.currentTime * context.sampleRate);
                 await withTimeout(context.resume(), "resume with prefill");
                 await withTimeout(afterContent, "suspend after content");
                 const endFrame = Math.round(context.currentTime * context.sampleRate);
                 const after = await snapshot(2);
+                const drainsAtCheckpoint = drains.slice();
                 await withTimeout(context.resume(), "resume to complete render");
                 const audio = await withTimeout(rendering, "complete render");
                 return JSON.stringify({ Rate: audio.sampleRate, StartFrame: startFrame, EndFrame: endFrame,
                     Before: [before.contentOutputFrames, before.underrunOutputFrames],
                     After: [after.contentOutputFrames, after.underrunOutputFrames],
+                    DrainsBeforeRender: drainsBeforeRender, DrainsAtCheckpoint: drainsAtCheckpoint,
                     Samples: Array.from(audio.getChannelData(0)) });
             }
             """,
-            new { input, inputRate, outputRate, quantum, checkpoint, split });
+            new { input, inputRate, outputRate, quantum, checkpoint, split, drain });
         var render = JsonSerializer.Deserialize<RenderResult>(renderJson)!;
 
         try
@@ -108,7 +126,17 @@ public sealed class PlaybackWorkletTests(ITestOutputHelper output)
             Assert.Equal(quantum, render.StartFrame);
             Assert.Equal(checkpoint, render.EndFrame);
             Assert.Equal(new[] { 0, quantum }, render.Before);
-            Assert.Equal(new[] { contentFrames, checkpoint - contentFrames }, render.After);
+            Assert.Equal(new[] { contentFrames, drain ? quantum : checkpoint - contentFrames }, render.After);
+            Assert.Equal(0, render.DrainsBeforeRender);
+            if (drain)
+            {
+                Assert.Equal(new DrainReply(1, contentFrames), Assert.Single(render.DrainsAtCheckpoint));
+                output.WriteLine($"EOF render acknowledgment by output frame {checkpoint}, generation 1, content frames {contentFrames}, terminal padding frames {checkpoint - quantum - contentFrames} before the checkpoint.");
+            }
+            else
+            {
+                Assert.Empty(render.DrainsAtCheckpoint);
+            }
             Assert.Equal(checkpoint + quantum, render.Samples.Length);
             Assert.All(render.Samples[..quantum], sample => Assert.Equal(0, sample));
             Assert.All(render.Samples[(quantum + contentFrames)..], sample => Assert.Equal(0, sample));
@@ -127,12 +155,12 @@ public sealed class PlaybackWorkletTests(ITestOutputHelper output)
                 maxError = Math.Max(maxError, error);
             }
 
-            output.WriteLine($"Chromium {browser.Version}, {inputRate} → {render.Rate} Hz, {toneHz} Hz tone, phase {initialPhase}, split={split}, content={render.After[0]}, silence={render.After[1] - render.Before[1]} measured before final quantum, max error={maxError:G9}.");
+            output.WriteLine($"Chromium {browser.Version}, {inputRate} → {render.Rate} Hz, {toneHz} Hz tone, phase {initialPhase}, split={split}, content={render.After[0]}, additional underrun={render.After[1] - render.Before[1]} through output frame {checkpoint}, max error={maxError:G9}.");
         }
         catch (Xunit.Sdk.XunitException)
         {
             var evidence = Path.Combine(Path.GetTempPath(), $"microsharp-playback-render-{Guid.NewGuid():N}.json");
-            await File.WriteAllTextAsync(evidence, JsonSerializer.Serialize(new { browser.Version, inputRate, outputRate, toneHz, initialPhase, split, input, render }));
+            await File.WriteAllTextAsync(evidence, JsonSerializer.Serialize(new { browser.Version, inputRate, outputRate, toneHz, initialPhase, split, drain, input, render }));
             output.WriteLine($"Rendered sample evidence: {evidence}");
             throw;
         }
@@ -152,5 +180,8 @@ public sealed class PlaybackWorkletTests(ITestOutputHelper output)
         throw new DirectoryNotFoundException("Could not locate the Playback worklet wwwroot.");
     }
 
-    private sealed record RenderResult(int Rate, int StartFrame, int EndFrame, int[] Before, int[] After, double[] Samples);
+    private sealed record DrainReply(int Generation, int ContentFrames);
+
+    private sealed record RenderResult(int Rate, int StartFrame, int EndFrame, int[] Before, int[] After,
+        int DrainsBeforeRender, DrainReply[] DrainsAtCheckpoint, double[] Samples);
 }

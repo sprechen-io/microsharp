@@ -21,6 +21,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\MicroSharp.Browser\MicroSharp.Browser.csproj" />
+    <ProjectReference Include="..\..\src\MicroSharp.Browser.Playback\MicroSharp.Browser.Playback.csproj" />
     <ProjectReference Include="..\..\src\MicroSharp.Native\MicroSharp.Native.csproj" />
   </ItemGroup>
 </Project>
