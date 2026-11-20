@@ -140,6 +140,39 @@ jobs:
       - name: Dry-run the history benchmark harness
         run: dotnet run --project benchmarks/MicroSharp.Benchmarks/MicroSharp.Benchmarks.csproj --configuration Release --no-build -- --job Dry --filter '*PcmHistoryBenchmarks*'
 
+  native-macos:
+    name: native-macos
+    runs-on: macos-15
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Use the runner temp directory
+        run: |
+          echo "TMPDIR=${RUNNER_TEMP}" >> "$GITHUB_ENV"
+          echo "TMP=${RUNNER_TEMP}" >> "$GITHUB_ENV"
+          echo "TEMP=${RUNNER_TEMP}" >> "$GITHUB_ENV"
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 11.0.x
+
+      - name: Report macOS and SDK information
+        shell: bash
+        run: |
+          sw_vers
+          architecture="$(uname -m)"
+          echo "$architecture"
+          test "$architecture" = arm64
+          dotnet --info
+
+      - name: Test adapter lifecycle and the OpenAL load path
+        run: dotnet test tests/MicroSharp.Native.Tests/MicroSharp.Native.Tests.csproj --configuration Release --filter "Category!=VirtualDevice" --logger "console;verbosity=normal"
+
   library:
     name: net11
     needs: [native-linux, native-windows]
