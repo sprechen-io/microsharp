@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { getEventListeners } from "node:events";
 import { test } from "node:test";
 import { createBorrowedPlayer, createPlayer } from "../../src/MicroSharp.Browser.Playback/wwwroot/microsharp-playback.js";
 
@@ -164,4 +165,114 @@ test("stopping during borrowed startup fences late module loading", { timeout: 1
     await stopped;
     assert.equal(nodes.length, 1);
     assert.equal(context.state, "running");
+});
+
+function fillBorrowedPlayer(player) {
+    assert.equal(player.reserve(2), 2);
+    player.enqueue(Float32Array.of(0.12345678, -0.00000021));
+}
+
+test("borrowed credit waits for positive free capacity in the current generation", { timeout: 1000 }, async t => {
+    const { player, nodes } = await startPlayer(t, true);
+    const deliverOld = nodes[0].port.onmessage;
+    await player.stop();
+    await player.start();
+    const node = nodes[1];
+    await player.waitForCredit();
+    fillBorrowedPlayer(player);
+    assert.equal(player.reserve(1), 0);
+
+    let finished = false;
+    const waiting = player.waitForCredit().then(() => { finished = true; });
+    await assert.rejects(player.waitForCredit(), /credit wait is already in progress/);
+    deliverOld({ data: { kind: "credit", generation: nodes[0].generation, retired: 2 } });
+    node.emit("credit", { generation: nodes[0].generation, retired: 2 });
+    node.emit("credit", { retired: 0 });
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(finished, false);
+
+    node.emit("credit", { retired: 1 });
+    await waiting;
+    assert.equal(player.reserve(2), 1);
+    await assert.rejects(player.waitForCredit(), /write or credit wait/);
+    player.cancelReservation();
+    await player.waitForCredit();
+});
+
+test("aborted and timed out waits remove their listeners and allow a subsequent wait", { timeout: 1000 }, async t => {
+    const { player, nodes: [node] } = await startPlayer(t, true);
+    fillBorrowedPlayer(player);
+    const controller = new AbortController();
+    const canceled = assert.rejects(player.waitForCredit(controller.signal), { name: "AbortError" });
+    assert.equal(getEventListeners(controller.signal, "abort").length, 1);
+    controller.abort();
+    await canceled;
+    await assert.rejects(player.waitForCredit(controller.signal), { name: "AbortError" });
+    assert.equal(getEventListeners(controller.signal, "abort").length, 0);
+
+    const laterController = new AbortController();
+    t.mock.timers.enable({ apis: ["setTimeout"] });
+    let finished = false;
+    const timedOut = assert.rejects(
+        player.waitForCredit(laterController.signal).finally(() => { finished = true; }),
+        /Playback credit timed out/);
+    t.mock.timers.tick(4999);
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(finished, false);
+    t.mock.timers.tick(1);
+    await timedOut;
+    assert.equal(getEventListeners(laterController.signal, "abort").length, 0);
+
+    const waiting = player.waitForCredit(laterController.signal);
+    node.emit("credit", { retired: 1 });
+    await waiting;
+    assert.equal(getEventListeners(laterController.signal, "abort").length, 0);
+});
+
+for (const [terminal, error] of [
+    ["stop", /Playback stopped/],
+    ["eof", /Playback input has already ended/],
+    ["processorerror", /playback audio processor failed/]
+]) {
+    test(`borrowed credit rejects and cleans up on ${terminal}`, { timeout: 1000 }, async t => {
+        const { player, nodes: [node] } = await startPlayer(t, true);
+        fillBorrowedPlayer(player);
+        const controller = new AbortController();
+        const rejected = assert.rejects(player.waitForCredit(controller.signal), error);
+
+        if (terminal === "eof") {
+            const drain = player.drain();
+            node.emit("drained");
+            await drain;
+        } else if (terminal === "processorerror") {
+            node.onprocessorerror();
+        } else {
+            await player.stop();
+        }
+
+        await rejected;
+        assert.equal(getEventListeners(controller.signal, "abort").length, 0);
+    });
+}
+
+test("borrowed callers can supply a worklet node constructor for their context", { timeout: 1000 }, async t => {
+    const { context, destination } = await startPlayer(t, true);
+    const NativeNode = globalThis.AudioWorkletNode;
+    let connected;
+    class CallerNode extends NativeNode {
+        constructor(nodeContext, ...args) {
+            assert.equal(nodeContext, context);
+            super(nodeContext, ...args);
+        }
+
+        connect(endpoint) {
+            connected = endpoint;
+            super.connect(endpoint);
+        }
+    }
+    setGlobal(t, "AudioWorkletNode", undefined);
+    const player = createBorrowedPlayer(context, destination, 24000, 2, CallerNode);
+    t.after(() => player.stop());
+    assert.equal(await player.start(), 48000);
+    assert.equal(connected, destination);
 });

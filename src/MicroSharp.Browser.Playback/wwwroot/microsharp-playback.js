@@ -20,7 +20,8 @@ export function createPlayer(inputRate, capacity) {
     return createTransport(inputRate, capacity);
 }
 
-export function createBorrowedPlayer(context, destination, inputRate, capacity) {
+export function createBorrowedPlayer(
+    context, destination, inputRate, capacity, workletNodeConstructor = globalThis.AudioWorkletNode) {
     if (!context || !destination || destination.context !== context) {
         throw new TypeError("Playback destination must belong to the borrowed audio context.");
     }
@@ -30,7 +31,7 @@ export function createBorrowedPlayer(context, destination, inputRate, capacity) 
     if (!Number.isInteger(capacity) || capacity < 2 || capacity > 192000) {
         throw new RangeError("Playback capacity must be an integer from 2 through 192000 frames.");
     }
-    return createTransport(inputRate, capacity, { context, destination });
+    return createTransport(inputRate, capacity, { context, destination, workletNodeConstructor });
 }
 
 function createTransport(inputRate, capacity, borrowed) {
@@ -55,6 +56,7 @@ function createTransport(inputRate, capacity, borrowed) {
         const stopped = new Error("Playback stopped.");
         run.snapshot?.reject(stopped);
         run.drain?.reject(stopped);
+        run.creditWait?.reject(stopped);
         if (run.node) {
             run.node.onprocessorerror = null;
             run.node.disconnect();
@@ -73,6 +75,9 @@ function createTransport(inputRate, capacity, borrowed) {
         if (message.kind === "credit") {
             run.retired = message.retired;
             run.node.port.postMessage({ kind: "creditAck", generation: run.generation });
+            if (freeFrames(run) > 0) {
+                run.creditWait?.resolve();
+            }
         } else if (message.kind === "snapshot" && run.snapshot?.request === message.request) {
             run.snapshot.resolve({
                 contentOutputFrames: message.contentOutputFrames,
@@ -89,7 +94,8 @@ function createTransport(inputRate, capacity, borrowed) {
             activeRun();
             return current.context.sampleRate;
         }
-        if (!globalThis.isSecureContext || !globalThis.AudioWorkletNode || (!borrowed && !globalThis.AudioContext)) {
+        const NodeConstructor = borrowed ? borrowed.workletNodeConstructor : globalThis.AudioWorkletNode;
+        if (!globalThis.isSecureContext || typeof NodeConstructor !== "function" || (!borrowed && !globalThis.AudioContext)) {
             throw new Error("Playback requires AudioWorklet in a secure browser context.");
         }
 
@@ -118,7 +124,7 @@ function createTransport(inputRate, capacity, borrowed) {
             if (context.state !== "running") {
                 throw new Error("The audio context did not enter the running state.");
             }
-            const node = new AudioWorkletNode(context, processorName, {
+            const node = new NodeConstructor(context, processorName, {
                 numberOfInputs: 0,
                 numberOfOutputs: 1,
                 outputChannelCount: [1],
@@ -130,6 +136,7 @@ function createTransport(inputRate, capacity, borrowed) {
                 run.error = new Error("The playback audio processor failed.");
                 run.snapshot?.reject(run.error);
                 run.drain?.reject(run.error);
+                run.creditWait?.reject(run.error);
             };
             // A reply confirms that the processor constructor and port are working.
             await snapshot(run);
@@ -139,6 +146,36 @@ function createTransport(inputRate, capacity, borrowed) {
         } catch (error) {
             await close(run);
             throw error;
+        }
+    }
+
+    function freeFrames(run) {
+        return capacity - (run.sent - run.retired);
+    }
+
+    async function waitForCredit(signal) {
+        signal?.throwIfAborted();
+        const run = activeRun();
+        if (run.inputEnded) {
+            throw new Error("Playback input has already ended.");
+        }
+        if (run.reserved !== 0 || run.creditWait) {
+            throw new Error("A playback write or credit wait is already in progress.");
+        }
+        if (freeFrames(run) > 0) {
+            return;
+        }
+
+        let onAbort;
+        try {
+            await withDeadline(new Promise((resolve, reject) => {
+                run.creditWait = { resolve, reject };
+                onAbort = () => reject(signal.reason);
+                signal?.addEventListener("abort", onAbort, { once: true });
+            }), "Playback credit timed out.");
+        } finally {
+            signal?.removeEventListener("abort", onAbort);
+            run.creditWait = undefined;
         }
     }
 
@@ -173,6 +210,7 @@ function createTransport(inputRate, capacity, borrowed) {
         }
 
         run.inputEnded = true;
+        run.creditWait?.reject(new Error("Playback input has already ended."));
         try {
             await withDeadline(new Promise((resolve, reject) => {
                 run.drain = { resolve, reject };
@@ -186,6 +224,7 @@ function createTransport(inputRate, capacity, borrowed) {
     return {
         start,
         drain,
+        ...(borrowed ? { waitForCredit } : {}),
         reserve(frames) {
             const run = activeRun();
             if (run.inputEnded) {
@@ -197,7 +236,7 @@ function createTransport(inputRate, capacity, borrowed) {
             if (run.reserved !== 0) {
                 throw new Error("A playback write is already in progress.");
             }
-            const accepted = Math.min(frames, capacity - (run.sent - run.retired));
+            const accepted = Math.min(frames, freeFrames(run));
             run.rejected += frames - accepted;
             run.reserved = accepted;
             return accepted;

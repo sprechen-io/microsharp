@@ -55,6 +55,8 @@ The worklet renders source positions through the last real sample, inclusive. Fr
 
 Browser JavaScript hosts can import `createBorrowedPlayer(context, destination, inputRate, capacity)` from the playback module. Activate the context before starting the player and supply an input-capable node in that context. Reserve frames, then pass exactly the reserved prefix as a `Float32Array` view to `enqueue`. The player copies that view and renders it at Float32 precision. Stop detaches the playback worklet from the caller's graph. The caller manages the context and its other nodes.
 
+A single borrowed writer can call `waitForCredit(signal)` when the FIFO is full, then call `reserve` again to claim frames. The wait accepts an optional `AbortSignal` and has a five-second deadline. A host that wraps its context can pass a matching worklet node constructor as the fifth argument to `createBorrowedPlayer`.
+
 ## Samples
 
 `samples/MicroSharp.Console` is an ordinary .NET consumer:
