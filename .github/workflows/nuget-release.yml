@@ -135,6 +135,11 @@ jobs:
             </packageSources>
           </configuration>
           EOF
+          playback=samples/MicroSharp.PlaybackWasm/MicroSharp.PlaybackWasm.csproj
+          playback_assets=()
+          if [[ -f "$playback" ]]; then
+            playback_assets=(--assets samples/MicroSharp.PlaybackWasm/obj/project.assets.json)
+          fi
           max_attempts=31
           for ((attempt=1; attempt<=max_attempts; attempt++)); do
             rm -rf "$cache"
@@ -152,13 +157,19 @@ jobs:
                 --force \
                 --no-http-cache \
                 --nologo \
+              && { [[ ! -f "$playback" ]] || dotnet restore "$playback" \
+                --configfile "$config" \
+                --source https://api.nuget.org/v3/index.json \
+                --force \
+                --no-http-cache \
+                --nologo; } \
               && dotnet run --project tools/MicroSharp.ReleaseGate/MicroSharp.ReleaseGate.csproj --configuration Release --no-build -- verify-cache \
                 --packages "$(tr -d '[:space:]' < artifacts/release/package-dir.txt)" \
                 --cache "$cache" \
                 --version-file Directory.Build.props \
                 --nuget-config "$config" \
                 --assets samples/MicroSharp.Console/obj/project.assets.json \
-                --assets samples/MicroSharp.BlazorWasm/obj/project.assets.json
+                --assets samples/MicroSharp.BlazorWasm/obj/project.assets.json "${playback_assets[@]}"
             then
               exit 0
             fi

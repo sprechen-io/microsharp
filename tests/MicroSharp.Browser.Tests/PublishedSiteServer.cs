@@ -8,7 +8,7 @@ internal sealed class PublishedSiteServer : IAsyncDisposable
     private readonly CancellationTokenSource _stop = new();
     private readonly Task _loop;
 
-    public PublishedSiteServer(string root)
+    public PublishedSiteServer(string root, Action<string, int>? observeResponse = null)
     {
         var tcp = new System.Net.Sockets.TcpListener(IPAddress.Loopback, 0);
         tcp.Start();
@@ -17,7 +17,7 @@ internal sealed class PublishedSiteServer : IAsyncDisposable
         Root = new Uri($"http://127.0.0.1:{port}/");
         _listener.Prefixes.Add(Root.AbsoluteUri);
         _listener.Start();
-        _loop = Task.Run(() => Listen(Path.GetFullPath(root)));
+        _loop = Task.Run(() => Listen(Path.GetFullPath(root), observeResponse));
     }
 
     public Uri Root { get; }
@@ -40,7 +40,7 @@ internal sealed class PublishedSiteServer : IAsyncDisposable
         _stop.Dispose();
     }
 
-    private async Task Listen(string root)
+    private async Task Listen(string root, Action<string, int>? observeResponse)
     {
         while (!_stop.IsCancellationRequested)
         {
@@ -78,6 +78,7 @@ internal sealed class PublishedSiteServer : IAsyncDisposable
             context.Response.ContentLength64 = body.Length;
             await context.Response.OutputStream.WriteAsync(body, _stop.Token).ConfigureAwait(false);
             context.Response.Close();
+            observeResponse?.Invoke("/" + relative, status);
         }
     }
 

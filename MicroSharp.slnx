@@ -2,6 +2,7 @@
   <Folder Name="/src/">
     <Project Path="src/MicroSharp/MicroSharp.csproj" />
     <Project Path="src/MicroSharp.Browser/MicroSharp.Browser.csproj" />
+    <Project Path="src/MicroSharp.Browser.Playback/MicroSharp.Browser.Playback.csproj" />
     <Project Path="src/MicroSharp.Native/MicroSharp.Native.csproj" />
     <Project Path="src/MicroSharp.Processing/MicroSharp.Processing.csproj" />
   </Folder>
