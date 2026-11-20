@@ -28,9 +28,9 @@ cat >"$project/consumer.csproj" <<'EOF'
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="MicroSharp" Version="0.3.0" />
-    <PackageReference Include="MicroSharp.Native" Version="0.3.0" />
-    <PackageReference Include="MicroSharp.Processing" Version="0.3.0" />
+    <PackageReference Include="MicroSharp" Version="0.3.1" />
+    <PackageReference Include="MicroSharp.Native" Version="0.3.1" />
+    <PackageReference Include="MicroSharp.Processing" Version="0.3.1" />
   </ItemGroup>
 </Project>
 EOF
@@ -81,7 +81,7 @@ cat >"$browser/browser.csproj" <<'EOF'
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="MicroSharp.Browser" Version="0.3.0" />
+    <PackageReference Include="MicroSharp.Browser" Version="0.3.1" />
   </ItemGroup>
 </Project>
 EOF
