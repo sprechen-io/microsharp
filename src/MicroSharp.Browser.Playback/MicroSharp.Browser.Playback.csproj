@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+  <PropertyGroup>
+    <TargetFramework>net11.0</TargetFramework>
+    <AddRazorSupportForMvc>false</AddRazorSupportForMvc>
+    <Description>Optional browser playback of streaming mono PCM16LE through AudioWorklet.</Description>
+    <PackageTags>audio;pcm;playback;blazor;webassembly</PackageTags>
+    <IsPackable>true</IsPackable>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <SupportedPlatform Include="browser" />
+    <PackageReference Include="Microsoft.JSInterop" Version="11.0.0" />
+  </ItemGroup>
+</Project>

@@ -20,12 +20,19 @@ public static class PackedRestoreChecker
             "staticwebassets/pcm-recorder-processor.js",
         ],
         ["MicroSharp.Processing"] = ["lib/net11.0/MicroSharp.Processing.dll"],
+        ["MicroSharp.Browser.Playback"] =
+        [
+            "lib/net11.0/MicroSharp.Browser.Playback.dll",
+            "staticwebassets/microsharp-playback.js",
+            "staticwebassets/pcm-playback-processor.js",
+        ],
     };
 
     private static readonly Dictionary<string, string[]> RequiredByAssets = new(StringComparer.Ordinal)
     {
         ["MicroSharp.Console"] = ["MicroSharp", "MicroSharp.Native", "MicroSharp.Processing"],
         ["MicroSharp.BlazorWasm"] = ["MicroSharp", "MicroSharp.Browser", "MicroSharp.Processing"],
+        ["MicroSharp.PlaybackWasm"] = ["MicroSharp.Browser.Playback"],
     };
 
     public static void Verify(
@@ -79,9 +86,26 @@ public static class PackedRestoreChecker
             }
         }
 
-        if (copies.Count > 0)
+        var publishedCopies = new List<(string PackageId, string Written, string Inner)>();
+        foreach (var item in copies)
         {
-            requiredIds.Add("MicroSharp.Browser");
+            var split = item.IndexOf('=', StringComparison.Ordinal);
+            if (split <= 0)
+            {
+                throw new ReleaseGateException($"published asset is missing: {item}");
+            }
+
+            var written = item[..split];
+            var inner = item[(split + 1)..];
+            var owners = Packages.Where(package => package.Value.Contains(inner, StringComparer.Ordinal)).ToArray();
+            if (!inner.StartsWith("staticwebassets/", StringComparison.Ordinal) || owners.Length != 1)
+            {
+                throw new ReleaseGateException($"no unique packed browser asset is named {inner}");
+            }
+
+            var packageId = owners[0].Key;
+            requiredIds.Add(packageId);
+            publishedCopies.Add((packageId, written, inner));
         }
 
         var innerHash = new Dictionary<(string PackageId, string Inner), string>();
@@ -153,7 +177,18 @@ public static class PackedRestoreChecker
                 throw new ReleaseGateException($"{assetsPath} does not reference a library");
             }
 
-            foreach (var packageId in RequiredByAssets[sampleName])
+            var expectedIds = RequiredByAssets[sampleName];
+            foreach (var (libraryName, _) in libraries)
+            {
+                var separator = libraryName.IndexOf('/', StringComparison.Ordinal);
+                var id = separator < 0 ? libraryName : libraryName[..separator];
+                if (Packages.ContainsKey(id) && !expectedIds.Contains(id, StringComparer.Ordinal))
+                {
+                    throw new ReleaseGateException($"{assetsPath} unexpectedly references {id}");
+                }
+            }
+
+            foreach (var packageId in expectedIds)
             {
                 if (libraries[$"{packageId}/{version}"] is not JsonObject library)
                 {
@@ -171,23 +206,15 @@ public static class PackedRestoreChecker
             }
         }
 
-        foreach (var item in copies)
+        foreach (var (packageId, written, inner) in publishedCopies)
         {
-            var split = item.IndexOf('=', StringComparison.Ordinal);
-            if (split <= 0)
-            {
-                throw new ReleaseGateException($"published asset is missing: {item}");
-            }
-
-            var written = item[..split];
-            var inner = item[(split + 1)..];
             if (!File.Exists(written))
             {
                 throw new ReleaseGateException($"published asset is missing: {written}");
             }
 
             var digest = ReleaseGate.Sha256(File.ReadAllBytes(written));
-            if (!innerHash.TryGetValue(("MicroSharp.Browser", inner), out var expected))
+            if (!innerHash.TryGetValue((packageId, inner), out var expected))
             {
                 throw new ReleaseGateException($"no packed browser asset is named {inner}");
             }

@@ -203,7 +203,7 @@ jobs:
         run: bash scripts/install-playwright-chromium.sh
 
       - name: Test
-        run: dotnet test MicroSharp.slnx --configuration Release --filter "Category!=VirtualDevice"
+        run: dotnet test MicroSharp.slnx --configuration Release --filter "Category!=VirtualDevice&Category!=PublishedPlayback"
 
       - name: Browser capture
         run: dotnet test tests/MicroSharp.Browser.Tests/MicroSharp.Browser.Tests.csproj --configuration Release --filter SimulatedMicrophoneProducesPcmThroughTheBrowserModule
@@ -228,6 +228,27 @@ jobs:
             --copy "${GITHUB_WORKSPACE}/samples/MicroSharp.BlazorWasm/bin/Release/net11.0/publish/wwwroot/_content/MicroSharp.Browser/pcm-recorder-processor.js=staticwebassets/pcm-recorder-processor.js"
           MICROSHARP_WASM_PUBLISH="${GITHUB_WORKSPACE}/samples/MicroSharp.BlazorWasm/bin/Release/net11.0/publish/wwwroot" \
             dotnet test tests/MicroSharp.Browser.Tests/MicroSharp.Browser.Tests.csproj --configuration Release --filter PublishedSampleShowsSimulatedCapture
+
+      - name: WebAssembly playback opt-in sample
+        run: |
+          set -euo pipefail
+          node --test tests/MicroSharp.Browser.Tests/playback-worklet.test.mjs
+          export NUGET_PACKAGES="${RUNNER_TEMP}/nuget-packages-playback"
+          site="${RUNNER_TEMP}/microsharp-playback-site"
+          publish="${RUNNER_TEMP}/microsharp-playback-publish"
+          mkdir -p "$NUGET_PACKAGES" "$site"
+          dotnet publish samples/MicroSharp.PlaybackWasm/MicroSharp.PlaybackWasm.csproj --configuration Release --output "$publish"
+          mv "$publish/wwwroot" "$site/playback"
+          assets="$site/playback/_content/MicroSharp.Browser.Playback"
+          dotnet run --project tools/MicroSharp.ReleaseGate/MicroSharp.ReleaseGate.csproj --configuration Release -- verify-packed \
+            --packages "${GITHUB_WORKSPACE}/artifacts/packages" \
+            --cache "$NUGET_PACKAGES" \
+            --version-file Directory.Build.props \
+            --assets "${GITHUB_WORKSPACE}/samples/MicroSharp.PlaybackWasm/obj/project.assets.json" \
+            --copy "$assets/microsharp-playback.js=staticwebassets/microsharp-playback.js" \
+            --copy "$assets/pcm-playback-processor.js=staticwebassets/pcm-playback-processor.js"
+          MICROSHARP_PLAYBACK_PUBLISH_ROOT="$site" \
+            dotnet test tests/MicroSharp.Browser.Tests/MicroSharp.Browser.Tests.csproj --configuration Release --filter "Category=PublishedPlayback"
 
       - name: Write the release manifest
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
