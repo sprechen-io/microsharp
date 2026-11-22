@@ -232,7 +232,7 @@ jobs:
       - name: WebAssembly playback opt-in sample
         run: |
           set -euo pipefail
-          node --test tests/MicroSharp.Browser.Tests/playback-worklet.test.mjs
+          node --test tests/MicroSharp.Browser.Tests/playback-*.test.mjs
           export NUGET_PACKAGES="${RUNNER_TEMP}/nuget-packages-playback"
           site="${RUNNER_TEMP}/microsharp-playback-site"
           publish="${RUNNER_TEMP}/microsharp-playback-publish"

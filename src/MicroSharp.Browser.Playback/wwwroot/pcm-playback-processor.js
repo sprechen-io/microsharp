@@ -3,7 +3,7 @@ class PcmPlaybackProcessor extends AudioWorkletProcessor {
         super();
         this.inputRate = inputRate;
         this.generation = generation;
-        this.frames = new Int16Array(capacity);
+        this.frames = new Float32Array(capacity);
         this.head = 0;
         this.count = 0;
         this.skip = 0;
@@ -13,6 +13,8 @@ class PcmPlaybackProcessor extends AudioWorkletProcessor {
         this.creditPending = false;
         this.content = 0;
         this.underrun = 0;
+        this.ended = false;
+        this.drained = false;
         this.port.onmessage = ({ data }) => this.receive(data);
     }
 
@@ -22,20 +24,30 @@ class PcmPlaybackProcessor extends AudioWorkletProcessor {
         }
 
         switch (message.kind) {
-            case "pcm": {
-                const bytes = new DataView(message.bytes.buffer, message.bytes.byteOffset, message.bytes.byteLength);
-                const frames = bytes.byteLength / 2;
+            case "pcm":
+            case "float32": {
+                if (this.ended) {
+                    return;
+                }
+                const floatInput = message.kind === "float32";
+                const samples = floatInput
+                    ? message.samples
+                    : new DataView(message.bytes.buffer, message.bytes.byteOffset, message.bytes.byteLength);
+                const frames = floatInput ? samples.length : samples.byteLength / 2;
                 if (!Number.isInteger(frames) || frames > this.frames.length - this.count) {
                     throw new RangeError("PCM exceeds the playback reservation.");
                 }
                 let tail = (this.head + this.count) % this.frames.length;
                 for (let index = 0; index < frames; index++) {
-                    this.frames[tail] = bytes.getInt16(index * 2, true);
+                    this.frames[tail] = floatInput ? samples[index] : samples.getInt16(index * 2, true) / 32768;
                     tail = (tail + 1) % this.frames.length;
                 }
                 this.count += frames;
                 break;
             }
+            case "eof":
+                this.ended = true;
+                break;
             case "creditAck":
                 this.creditPending = false;
                 this.reportCredit();
@@ -71,7 +83,11 @@ class PcmPlaybackProcessor extends AudioWorkletProcessor {
 
     process(_inputs, outputs) {
         const output = outputs[0]?.[0];
-        if (!output) {
+        if (!output?.length) {
+            return true;
+        }
+        if (this.drained) {
+            output.fill(0);
             return true;
         }
 
@@ -84,7 +100,7 @@ class PcmPlaybackProcessor extends AudioWorkletProcessor {
                 const right = this.frames[(this.head + 1) % this.frames.length];
                 value += (right - left) * (this.fraction / sampleRate);
             }
-            output[written++] = value / 32768;
+            output[written++] = value;
 
             // The fractional source position is an integer numerator over the context rate.
             const position = this.fraction + this.inputRate;
@@ -94,8 +110,22 @@ class PcmPlaybackProcessor extends AudioWorkletProcessor {
         }
         output.fill(0, written);
         this.content += written;
-        this.underrun += output.length - written;
+        // At EOF a fractional position needs two real samples. An exact position needs only one.
+        this.drained = this.ended && this.count <= (this.fraction === 0 ? 0 : 1);
+        if (this.drained) {
+            this.skip = this.count;
+            this.retireSkippedFrames();
+        } else {
+            this.underrun += output.length - written;
+        }
         this.reportCredit();
+        if (this.drained) {
+            this.port.postMessage({
+                kind: "drained",
+                generation: this.generation,
+                contentOutputFrames: this.content
+            });
+        }
         return true;
     }
 }

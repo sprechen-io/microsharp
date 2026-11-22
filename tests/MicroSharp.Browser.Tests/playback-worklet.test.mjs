@@ -49,10 +49,15 @@ function createWorklet(inputRate, outputRate, capacity) {
             return [reply.contentOutputFrames, reply.underrunOutputFrames];
         },
         credits() {
-            return messages.map(message => {
-                assert.equal(message.kind, "credit");
+            return messages.filter(message => message.kind === "credit").map(message => {
                 assert.equal(message.generation, generation);
                 return message.retired;
+            });
+        },
+        drains() {
+            return messages.filter(message => message.kind === "drained").map(message => {
+                assert.equal(message.generation, generation);
+                return message.contentOutputFrames;
             });
         }
     };
@@ -123,3 +128,113 @@ test("downsampling returns credit for late skipped frames in a small FIFO", () =
     assert.deepEqual(worklet.credits(), [2, 3, 5]);
     assert.deepEqual(worklet.snapshot(), [2, 4]);
 });
+
+test("empty EOF acknowledges once from a render callback and leaves padding out of the counters", () => {
+    const worklet = createWorklet(48_000, 48_000, 1);
+    assert.deepEqual(worklet.render(2), [0, 0]);
+    worklet.send("eof");
+    worklet.send("eof");
+    worklet.enqueue(100);
+    assert.deepEqual(worklet.render(0), []);
+    assert.deepEqual(worklet.drains(), []);
+
+    assert.deepEqual(worklet.render(2), [0, 0]);
+    assert.deepEqual(worklet.render(2), [0, 0]);
+    assert.deepEqual(worklet.drains(), [0]);
+    assert.deepEqual(worklet.snapshot(), [0, 2]);
+    assert.deepEqual(worklet.credits(), []);
+});
+
+test("stale EOF leaves writes open and matching EOF seals a full FIFO", () => {
+    const worklet = createWorklet(48_000, 48_000, 4);
+    worklet.enqueue(100, 0);
+    worklet.send("eof", { generation: 0 });
+    const bytes = Uint8Array.of(99, 0);
+    worklet.send("pcm", { generation: 0, bytes });
+    worklet.enqueue(200, 300);
+    worklet.send("eof");
+    assert.deepEqual(worklet.drains(), []);
+
+    assert.deepEqual(worklet.render(2), [100, 0]);
+    assert.deepEqual(worklet.drains(), []);
+    worklet.enqueue(400, 500);
+    assert.deepEqual(worklet.render(2), [200, 300]);
+    assert.deepEqual(worklet.drains(), [4]);
+    worklet.send("eof");
+    worklet.send("creditAck");
+    assert.deepEqual(worklet.render(2), [0, 0]);
+    assert.deepEqual(worklet.drains(), [4]);
+    assert.deepEqual(worklet.snapshot(), [4, 0]);
+    assert.deepEqual(worklet.credits(), [2, 4]);
+});
+
+test("EOF releases an already-rendered single frame awaiting fractional lookahead", () => {
+    const worklet = createWorklet(24_000, 44_100, 1);
+    worklet.enqueue(1234);
+    assert.deepEqual(worklet.render(3), [1234, 0, 0]);
+    assert.deepEqual(worklet.credits(), []);
+    worklet.send("eof");
+    assert.deepEqual(worklet.drains(), []);
+
+    assert.deepEqual(worklet.render(2), [0, 0]);
+    assert.deepEqual(worklet.drains(), [1]);
+    assert.deepEqual(worklet.snapshot(), [1, 2]);
+    assert.deepEqual(worklet.credits(), [1]);
+});
+
+test("EOF drops a downsample skip beyond the input boundary after retiring late skipped frames", () => {
+    const worklet = createWorklet(96_000, 24_000, 2);
+    worklet.enqueue(100, 200);
+    assert.deepEqual(worklet.render(2), [100, 0]);
+    worklet.send("creditAck");
+    worklet.enqueue(300);
+    worklet.send("eof");
+    assert.deepEqual(worklet.drains(), []);
+
+    assert.deepEqual(worklet.render(2), [0, 0]);
+    assert.deepEqual(worklet.drains(), [1]);
+    assert.deepEqual(worklet.snapshot(), [1, 1]);
+    assert.deepEqual(worklet.credits(), [2, 3]);
+});
+
+test("Float32 ingress shares the bounded ring and keeps samples between PCM16 steps", () => {
+    const worklet = createWorklet(24000, 48000, 2);
+    const samples = Float32Array.of(0.12345678, -0.00000021);
+    exceedsReservation(() => worklet.send("float32", { samples: new Float32Array(3) }));
+    worklet.send("float32", { samples });
+    exceedsReservation(() => worklet.send("float32", { samples }));
+    worklet.send("eof");
+    const midpoint = Math.fround(samples[0] + (samples[1] - samples[0]) / 2);
+    assert.deepEqual(worklet.render(4), [samples[0], midpoint, samples[1], 0].map(value => value * 32768));
+    assert.deepEqual(worklet.drains(), [3]);
+});
+
+for (const [inputRate, outputRate, input] of [
+    [24_000, 48_000, [2000, -2000, 4000]],
+    [24_000, 44_100, [2000, -2000, 4000, -1000, 8000]],
+    [48_000, 44_100, [2000, -2000, 4000, -1000, 8000]]
+]) {
+    test(`EOF keeps finite interpolation positions after split writes at ${inputRate} → ${outputRate} Hz`, () => {
+        const worklet = createWorklet(inputRate, outputRate, input.length);
+        worklet.enqueue(input[0]);
+        assert.deepEqual(worklet.render(1), [input[0]]);
+        worklet.enqueue(...input.slice(1));
+        worklet.send("eof");
+
+        const contentFrames = 1 + Math.floor((input.length - 1) * outputRate / inputRate);
+        const final = worklet.render(contentFrames - 1);
+        const expected = Array.from({ length: contentFrames - 1 }, (_, index) => {
+            const numerator = (index + 1) * inputRate;
+            const left = Math.floor(numerator / outputRate);
+            const fraction = (numerator % outputRate) / outputRate;
+            const value = fraction === 0
+                ? input[left]
+                : input[left] + (input[left + 1] - input[left]) * fraction;
+            return Math.fround(value);
+        });
+        assert.deepEqual(final, expected);
+        assert.deepEqual(worklet.drains(), [contentFrames]);
+        assert.deepEqual(worklet.render(2), [0, 0]);
+        assert.deepEqual(worklet.snapshot(), [contentFrames, 0]);
+    });
+}
