@@ -6,12 +6,14 @@ import { runInNewContext } from "node:vm";
 const worklet = new URL("../../src/MicroSharp.Browser.Playback/wwwroot/pcm-playback-processor.js", import.meta.url);
 const source = readFileSync(worklet, "utf8");
 
-function createWorklet(inputRate, outputRate, capacity) {
+function createWorklet(inputRate, outputRate, capacity, startup) {
     const messages = [];
     const generation = 1;
     let Processor;
+    let frame = 0;
     runInNewContext(source, {
         sampleRate: outputRate,
+        get currentFrame() { return frame; },
         AudioWorkletProcessor: class {
             port = { postMessage: message => messages.push(message) };
         },
@@ -21,7 +23,7 @@ function createWorklet(inputRate, outputRate, capacity) {
         }
     }, { filename: worklet.pathname });
 
-    const processor = new Processor({ processorOptions: { inputRate, capacity, generation } });
+    const processor = new Processor({ processorOptions: { inputRate, capacity, generation, ...startup } });
     function send(kind, data) {
         processor.port.onmessage({ data: { kind, generation, ...data } });
     }
@@ -38,6 +40,7 @@ function createWorklet(inputRate, outputRate, capacity) {
         render(frames) {
             const channel = new Float32Array(frames).fill(NaN);
             assert.equal(processor.process([], [[channel]]), true);
+            frame += frames;
             return Array.from(channel, sample => sample * 32768);
         },
         snapshot() {
@@ -62,6 +65,41 @@ function createWorklet(inputRate, outputRate, capacity) {
         }
     };
 }
+
+test("a short stream preloaded before EOF begins at the requested context frame", () => {
+    const worklet = createWorklet(48_000, 48_000, 4, {
+        earliestOutputFrame: 7,
+        minimumBufferedInputFrames: 4
+    });
+
+    worklet.enqueue(100, 200);
+    assert.deepEqual(worklet.render(4), [0, 0, 0, 0]);
+    assert.deepEqual(worklet.snapshot(), [0, 0]);
+    worklet.send("eof");
+    assert.deepEqual(worklet.render(5), [0, 0, 0, 100, 200]);
+    assert.deepEqual(worklet.drains(), [2]);
+    assert.deepEqual(worklet.snapshot(), [2, 0]);
+});
+
+test("a past start frame does not delay a newly available prefill", () => {
+    const worklet = createWorklet(48_000, 48_000, 4, {
+        earliestOutputFrame: 2,
+        minimumBufferedInputFrames: 2
+    });
+    worklet.enqueue(100);
+    assert.deepEqual(worklet.render(4), [0, 0, 0, 0]);
+    worklet.enqueue(200);
+    assert.deepEqual(worklet.render(2), [100, 200]);
+    assert.deepEqual(worklet.snapshot(), [2, 0]);
+});
+
+test("empty EOF ignores a future start frame", () => {
+    const worklet = createWorklet(48_000, 48_000, 4, { earliestOutputFrame: 80 });
+    worklet.send("eof");
+    assert.deepEqual(worklet.render(2), [0, 0]);
+    assert.deepEqual(worklet.drains(), [0]);
+    assert.deepEqual(worklet.snapshot(), [0, 0]);
+});
 
 function exceedsReservation(write) {
     // The processor runs in a different realm, so match the error name.
@@ -207,6 +245,69 @@ test("Float32 ingress shares the bounded ring and keeps samples between PCM16 st
     const midpoint = Math.fround(samples[0] + (samples[1] - samples[0]) / 2);
     assert.deepEqual(worklet.render(4), [samples[0], midpoint, samples[1], 0].map(value => value * 32768));
     assert.deepEqual(worklet.drains(), [3]);
+});
+
+test("prefill and lead preserve all data and retire nothing before first output", () => {
+    const worklet = createWorklet(48000, 48000, 3, {
+        minimumBufferedInputFrames: 3,
+        initialOutputDelayFrames: 3
+    });
+    worklet.enqueue(100, 200);
+    assert.deepEqual(worklet.render(2), [0, 0]);
+    assert.deepEqual(worklet.snapshot(), [0, 0]);
+    assert.deepEqual(worklet.credits(), []);
+
+    worklet.enqueue(300);
+    assert.deepEqual(worklet.render(2), [0, 0]);
+    assert.deepEqual(worklet.snapshot(), [0, 0]);
+    assert.deepEqual(worklet.credits(), []);
+    assert.deepEqual(worklet.render(5), [0, 100, 200, 300, 0]);
+    assert.deepEqual(worklet.snapshot(), [3, 1]);
+    assert.deepEqual(worklet.credits(), [3]);
+
+    worklet.enqueue(400);
+    assert.deepEqual(worklet.render(2), [400, 0]);
+    assert.deepEqual(worklet.snapshot(), [4, 2]);
+});
+
+test("lead without prefill waits for the first frame before counting output positions", () => {
+    const worklet = createWorklet(48000, 48000, 2, { initialOutputDelayFrames: 2 });
+    assert.deepEqual(worklet.render(3), [0, 0, 0]);
+    worklet.enqueue(100);
+    assert.deepEqual(worklet.render(2), [0, 0]);
+    assert.deepEqual(worklet.snapshot(), [0, 0]);
+    assert.deepEqual(worklet.render(2), [100, 0]);
+    assert.deepEqual(worklet.snapshot(), [1, 1]);
+});
+
+test("short EOF bypasses prefill and acknowledges its final valid sample after the lead", () => {
+    const worklet = createWorklet(24000, 44100, 4, {
+        minimumBufferedInputFrames: 4,
+        initialOutputDelayFrames: 2
+    });
+    worklet.enqueue(1000);
+    worklet.send("eof");
+    assert.deepEqual(worklet.render(2), [0, 0]);
+    assert.deepEqual(worklet.drains(), []);
+    assert.deepEqual(worklet.credits(), []);
+    assert.deepEqual(worklet.render(2), [1000, 0]);
+    assert.deepEqual(worklet.drains(), [1]);
+    assert.deepEqual(worklet.snapshot(), [1, 0]);
+    assert.deepEqual(worklet.credits(), [1]);
+});
+
+test("empty EOF acknowledges during the next render callback regardless of configured lead", () => {
+    const worklet = createWorklet(24000, 44100, 4, {
+        minimumBufferedInputFrames: 4,
+        initialOutputDelayFrames: 44100
+    });
+    assert.deepEqual(worklet.render(2), [0, 0]);
+    worklet.send("eof");
+    assert.deepEqual(worklet.drains(), []);
+    assert.deepEqual(worklet.render(2), [0, 0]);
+    assert.deepEqual(worklet.drains(), [0]);
+    assert.deepEqual(worklet.credits(), []);
+    assert.deepEqual(worklet.snapshot(), [0, 0]);
 });
 
 for (const [inputRate, outputRate, input] of [

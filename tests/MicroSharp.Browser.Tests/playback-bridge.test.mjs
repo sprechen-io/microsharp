@@ -39,6 +39,7 @@ async function startPlayer(t, borrow = false) {
         };
 
         constructor(_context, _name, { processorOptions }) {
+            this.processorOptions = processorOptions;
             this.generation = processorOptions.generation;
             nodes.push(this);
         }
@@ -275,4 +276,37 @@ test("borrowed callers can supply a worklet node constructor for their context",
     t.after(() => player.stop());
     assert.equal(await player.start(), 48000);
     assert.equal(connected, destination);
+});
+
+test("borrowed startup validates frame bounds and forwards opt-in settings", { timeout: 1000 }, async t => {
+    const { context, destination, nodes } = await startPlayer(t, true);
+    assert.equal(nodes[0].processorOptions.minimumBufferedInputFrames, 0);
+    assert.equal(nodes[0].processorOptions.initialOutputDelayFrames, 0);
+    assert.equal(nodes[0].processorOptions.earliestOutputFrame, 0);
+    for (const minimumBufferedInputFrames of [-1, 1.5, 3, Infinity]) {
+        assert.throws(
+            () => createBorrowedPlayer(context, destination, 24000, 2, undefined, { minimumBufferedInputFrames }),
+            /prefill/);
+    }
+    for (const initialOutputDelayFrames of [-1, 1.5, context.sampleRate + 1, Infinity]) {
+        assert.throws(
+            () => createBorrowedPlayer(context, destination, 24000, 2, undefined, { initialOutputDelayFrames }),
+            /output delay/);
+    }
+
+    for (const earliestOutputFrame of [-1, 1.5, Number.MAX_SAFE_INTEGER + 1, Infinity]) {
+        assert.throws(
+            () => createBorrowedPlayer(context, destination, 24000, 2, undefined, { earliestOutputFrame }),
+            /earliest playback output frame/i);
+    }
+
+    const options = {
+        minimumBufferedInputFrames: 2, initialOutputDelayFrames: context.sampleRate, earliestOutputFrame: 125
+    };
+    const player = createBorrowedPlayer(context, destination, 24000, 2, undefined, options);
+    t.after(() => player.stop());
+    await player.start();
+    assert.equal(nodes[1].processorOptions.minimumBufferedInputFrames, 2);
+    assert.equal(nodes[1].processorOptions.initialOutputDelayFrames, context.sampleRate);
+    assert.equal(nodes[1].processorOptions.earliestOutputFrame, 125);
 });

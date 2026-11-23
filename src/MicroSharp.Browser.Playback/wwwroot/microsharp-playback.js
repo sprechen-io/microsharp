@@ -21,7 +21,8 @@ export function createPlayer(inputRate, capacity) {
 }
 
 export function createBorrowedPlayer(
-    context, destination, inputRate, capacity, workletNodeConstructor = globalThis.AudioWorkletNode) {
+    context, destination, inputRate, capacity, workletNodeConstructor = globalThis.AudioWorkletNode,
+    { minimumBufferedInputFrames = 0, initialOutputDelayFrames = 0, earliestOutputFrame = 0 } = {}) {
     if (!context || !destination || destination.context !== context) {
         throw new TypeError("Playback destination must belong to the borrowed audio context.");
     }
@@ -31,7 +32,21 @@ export function createBorrowedPlayer(
     if (!Number.isInteger(capacity) || capacity < 2 || capacity > 192000) {
         throw new RangeError("Playback capacity must be an integer from 2 through 192000 frames.");
     }
-    return createTransport(inputRate, capacity, { context, destination, workletNodeConstructor });
+    if (!Number.isInteger(minimumBufferedInputFrames) ||
+        minimumBufferedInputFrames < 0 || minimumBufferedInputFrames > capacity) {
+        throw new RangeError("Playback prefill must be an integer from zero through FIFO capacity.");
+    }
+    if (!Number.isInteger(initialOutputDelayFrames) ||
+        initialOutputDelayFrames < 0 || initialOutputDelayFrames > context.sampleRate) {
+        throw new RangeError("Playback output delay must be an integer from zero through one second in output frames.");
+    }
+    if (!Number.isSafeInteger(earliestOutputFrame) || earliestOutputFrame < 0) {
+        throw new RangeError("Earliest playback output frame must be a nonnegative safe integer.");
+    }
+    return createTransport(inputRate, capacity, {
+        context, destination, workletNodeConstructor,
+        startup: { minimumBufferedInputFrames, initialOutputDelayFrames, earliestOutputFrame }
+    });
 }
 
 function createTransport(inputRate, capacity, borrowed) {
@@ -128,7 +143,7 @@ function createTransport(inputRate, capacity, borrowed) {
                 numberOfInputs: 0,
                 numberOfOutputs: 1,
                 outputChannelCount: [1],
-                processorOptions: { inputRate, capacity, generation: run.generation }
+                processorOptions: { inputRate, capacity, generation: run.generation, ...borrowed?.startup }
             });
             run.node = node;
             node.port.onmessage = ({ data }) => receive(run, data);

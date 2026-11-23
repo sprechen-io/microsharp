@@ -1,5 +1,8 @@
 class PcmPlaybackProcessor extends AudioWorkletProcessor {
-    constructor({ processorOptions: { inputRate, capacity, generation } }) {
+    constructor({ processorOptions: {
+        inputRate, capacity, generation, minimumBufferedInputFrames = 0, initialOutputDelayFrames = 0,
+        earliestOutputFrame = 0
+    } }) {
         super();
         this.inputRate = inputRate;
         this.generation = generation;
@@ -15,6 +18,10 @@ class PcmPlaybackProcessor extends AudioWorkletProcessor {
         this.underrun = 0;
         this.ended = false;
         this.drained = false;
+        this.starting = minimumBufferedInputFrames > 0 || initialOutputDelayFrames > 0 || earliestOutputFrame > 0;
+        this.startThreshold = Math.max(1, minimumBufferedInputFrames);
+        this.startDelay = initialOutputDelayFrames;
+        this.earliestOutputFrame = earliestOutputFrame;
         this.port.onmessage = ({ data }) => this.receive(data);
     }
 
@@ -81,6 +88,22 @@ class PcmPlaybackProcessor extends AudioWorkletProcessor {
         this.port.postMessage({ kind: "credit", generation: this.generation, retired: this.retired });
     }
 
+    fillStartupSilence(output) {
+        if (!this.ended && this.count < this.startThreshold) {
+            output.fill(0);
+            return output.length;
+        }
+
+        // Empty EOF can acknowledge immediately, even with a configured lead.
+        const framesUntilStart = this.earliestOutputFrame > 0 ? this.earliestOutputFrame - currentFrame : 0;
+        const waitFrames = this.count === 0 ? 0 : Math.max(this.startDelay, framesUntilStart);
+        const silence = Math.min(waitFrames, output.length);
+        output.fill(0, 0, silence);
+        this.startDelay = Math.max(0, this.startDelay - silence);
+        this.starting = waitFrames > silence;
+        return silence;
+    }
+
     process(_inputs, outputs) {
         const output = outputs[0]?.[0];
         if (!output?.length) {
@@ -91,7 +114,12 @@ class PcmPlaybackProcessor extends AudioWorkletProcessor {
             return true;
         }
 
-        let written = 0;
+        const startupSilence = this.starting ? this.fillStartupSilence(output) : 0;
+        if (startupSilence === output.length) {
+            return true;
+        }
+
+        let written = startupSilence;
         this.retireSkippedFrames();
         while (written < output.length && this.count > (this.fraction === 0 ? 0 : 1)) {
             const left = this.frames[this.head];
@@ -109,7 +137,7 @@ class PcmPlaybackProcessor extends AudioWorkletProcessor {
             this.retireSkippedFrames();
         }
         output.fill(0, written);
-        this.content += written;
+        this.content += written - startupSilence;
         // At EOF a fractional position needs two real samples. An exact position needs only one.
         this.drained = this.ended && this.count <= (this.fraction === 0 ? 0 : 1);
         if (this.drained) {
