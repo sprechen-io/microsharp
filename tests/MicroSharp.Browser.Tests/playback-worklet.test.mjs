@@ -10,8 +10,10 @@ function createWorklet(inputRate, outputRate, capacity, startup) {
     const messages = [];
     const generation = 1;
     let Processor;
+    let frame = 0;
     runInNewContext(source, {
         sampleRate: outputRate,
+        get currentFrame() { return frame; },
         AudioWorkletProcessor: class {
             port = { postMessage: message => messages.push(message) };
         },
@@ -38,6 +40,7 @@ function createWorklet(inputRate, outputRate, capacity, startup) {
         render(frames) {
             const channel = new Float32Array(frames).fill(NaN);
             assert.equal(processor.process([], [[channel]]), true);
+            frame += frames;
             return Array.from(channel, sample => sample * 32768);
         },
         snapshot() {
@@ -62,6 +65,41 @@ function createWorklet(inputRate, outputRate, capacity, startup) {
         }
     };
 }
+
+test("a short stream preloaded before EOF begins at the requested context frame", () => {
+    const worklet = createWorklet(48_000, 48_000, 4, {
+        earliestOutputFrame: 7,
+        minimumBufferedInputFrames: 4
+    });
+
+    worklet.enqueue(100, 200);
+    assert.deepEqual(worklet.render(4), [0, 0, 0, 0]);
+    assert.deepEqual(worklet.snapshot(), [0, 0]);
+    worklet.send("eof");
+    assert.deepEqual(worklet.render(5), [0, 0, 0, 100, 200]);
+    assert.deepEqual(worklet.drains(), [2]);
+    assert.deepEqual(worklet.snapshot(), [2, 0]);
+});
+
+test("a past start frame does not delay a newly available prefill", () => {
+    const worklet = createWorklet(48_000, 48_000, 4, {
+        earliestOutputFrame: 2,
+        minimumBufferedInputFrames: 2
+    });
+    worklet.enqueue(100);
+    assert.deepEqual(worklet.render(4), [0, 0, 0, 0]);
+    worklet.enqueue(200);
+    assert.deepEqual(worklet.render(2), [100, 200]);
+    assert.deepEqual(worklet.snapshot(), [2, 0]);
+});
+
+test("empty EOF ignores a future start frame", () => {
+    const worklet = createWorklet(48_000, 48_000, 4, { earliestOutputFrame: 80 });
+    worklet.send("eof");
+    assert.deepEqual(worklet.render(2), [0, 0]);
+    assert.deepEqual(worklet.drains(), [0]);
+    assert.deepEqual(worklet.snapshot(), [0, 0]);
+});
 
 function exceedsReservation(write) {
     // The processor runs in a different realm, so match the error name.

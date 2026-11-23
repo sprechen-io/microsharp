@@ -22,7 +22,7 @@ export function createPlayer(inputRate, capacity) {
 
 export function createBorrowedPlayer(
     context, destination, inputRate, capacity, workletNodeConstructor = globalThis.AudioWorkletNode,
-    { minimumBufferedInputFrames = 0, initialOutputDelayFrames = 0 } = {}) {
+    { minimumBufferedInputFrames = 0, initialOutputDelayFrames = 0, earliestOutputFrame = 0 } = {}) {
     if (!context || !destination || destination.context !== context) {
         throw new TypeError("Playback destination must belong to the borrowed audio context.");
     }
@@ -40,9 +40,12 @@ export function createBorrowedPlayer(
         initialOutputDelayFrames < 0 || initialOutputDelayFrames > context.sampleRate) {
         throw new RangeError("Playback output delay must be an integer from zero through one second in output frames.");
     }
+    if (!Number.isSafeInteger(earliestOutputFrame) || earliestOutputFrame < 0) {
+        throw new RangeError("Earliest playback output frame must be a nonnegative safe integer.");
+    }
     return createTransport(inputRate, capacity, {
         context, destination, workletNodeConstructor,
-        startup: { minimumBufferedInputFrames, initialOutputDelayFrames }
+        startup: { minimumBufferedInputFrames, initialOutputDelayFrames, earliestOutputFrame }
     });
 }
 

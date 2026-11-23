@@ -1,6 +1,7 @@
 class PcmPlaybackProcessor extends AudioWorkletProcessor {
     constructor({ processorOptions: {
-        inputRate, capacity, generation, minimumBufferedInputFrames = 0, initialOutputDelayFrames = 0
+        inputRate, capacity, generation, minimumBufferedInputFrames = 0, initialOutputDelayFrames = 0,
+        earliestOutputFrame = 0
     } }) {
         super();
         this.inputRate = inputRate;
@@ -17,9 +18,10 @@ class PcmPlaybackProcessor extends AudioWorkletProcessor {
         this.underrun = 0;
         this.ended = false;
         this.drained = false;
-        this.starting = minimumBufferedInputFrames > 0 || initialOutputDelayFrames > 0;
+        this.starting = minimumBufferedInputFrames > 0 || initialOutputDelayFrames > 0 || earliestOutputFrame > 0;
         this.startThreshold = Math.max(1, minimumBufferedInputFrames);
         this.startDelay = initialOutputDelayFrames;
+        this.earliestOutputFrame = earliestOutputFrame;
         this.port.onmessage = ({ data }) => this.receive(data);
     }
 
@@ -93,10 +95,12 @@ class PcmPlaybackProcessor extends AudioWorkletProcessor {
         }
 
         // Empty EOF can acknowledge immediately, even with a configured lead.
-        const silence = this.count === 0 ? 0 : Math.min(this.startDelay, output.length);
+        const framesUntilStart = this.earliestOutputFrame > 0 ? this.earliestOutputFrame - currentFrame : 0;
+        const waitFrames = this.count === 0 ? 0 : Math.max(this.startDelay, framesUntilStart);
+        const silence = Math.min(waitFrames, output.length);
         output.fill(0, 0, silence);
-        this.startDelay -= silence;
-        this.starting = this.count !== 0 && this.startDelay > 0;
+        this.startDelay = Math.max(0, this.startDelay - silence);
+        this.starting = waitFrames > silence;
         return silence;
     }
 

@@ -61,6 +61,8 @@ A single borrowed writer can call `waitForCredit(signal)` when the FIFO is full,
 
 The optional sixth argument sets `minimumBufferedInputFrames` and `initialOutputDelayFrames`. Both default to zero. The prefill cannot exceed FIFO capacity. The lead starts after prefill and is limited to one second in context output frames. With lead alone, the first input frame starts the countdown. Short streams can start below prefill at EOF, and empty streams skip the lead. Startup silence leaves the content and underrun counters unchanged.
 
+Set `earliestOutputFrame` in the same argument to hold prefetched audio until an absolute frame on the borrowed context clock. Compute it from the context sample rate and desired start time. If prefill completes after that frame, playback starts as soon as the prefill and any configured relative delay allow. Empty EOF acknowledges without waiting for the clock.
+
 ## Samples
 
 `samples/MicroSharp.Console` is an ordinary .NET consumer:
